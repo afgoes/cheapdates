@@ -15,7 +15,7 @@ every pure-HTTP client (fli `dates`, google-flights-mcp, …) has returned empty
 
 ## Install
 ```
-uv tool install /path/to/cheapdates        # or: uv sync && uv run cheapdates ...
+git clone https://github.com/afgoes/cheapdates.git && cd cheapdates && uv sync   # see INSTALL.md
 python -m playwright install chromium       # for the graph backend
 ```
 

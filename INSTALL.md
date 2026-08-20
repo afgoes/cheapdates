@@ -37,7 +37,7 @@ ever fails, so you always get an answer.
 ## Install
 
 ```bash
-git clone <repo-url> cheapdates
+git clone https://github.com/afgoes/cheapdates.git
 cd cheapdates
 uv sync                                  # creates .venv with all deps
 uv run python -m playwright install chromium   # one-time browser download
