@@ -22,13 +22,20 @@ def main(
     backend: str = typer.Option("auto", "--backend", "-b", help="auto | graph (browser, 1 call/60 days) | sweep (fast-flights, 1 call/day)"),
     nonstop: bool = typer.Option(False, "--nonstop", help="nonstop only"),
     seat: str = typer.Option("economy", "--seat", help="economy | premium_economy | business | first"),
+    include_airlines: bool = typer.Option(False, "--include-airlines", help="Use individual flight searches so airline names match their prices"),
     top: int = typer.Option(5, "--top", help="how many cheapest dates to highlight"),
     as_json: bool = typer.Option(False, "--json", help="machine-readable output"),
 ):
-    res = cheapest_dates(origin, destination, start.date(), end.date(), trip_length=trip_length, currency=currency,
-                         backend=backend, max_stops=0 if nonstop else None, seat=seat)
+    try:
+        res = cheapest_dates(origin, destination, start.date(), end.date(), trip_length=trip_length, currency=currency,
+                             backend=backend, max_stops=0 if nonstop else None, seat=seat,
+                             include_airlines=include_airlines)
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
     if as_json:
         print(json.dumps(res.to_json(), indent=1))
+        if res.status in ("partial", "error"):
+            raise typer.Exit(1)
         return
     sym = {"USD": "$", "EUR": "€", "GBP": "£"}.get(res.currency, res.currency + " ")
     cheap = {d.depart for d in sorted(res.priced, key=lambda d: d.price)[:top]}
@@ -46,6 +53,8 @@ def main(
     print(f"[{res.backend} backend · {len(res.priced)}/{len(res.days)} dates priced]", file=sys.stderr)
     for w in res.warnings:
         print("warning:", w, file=sys.stderr)
+    if res.status in ("partial", "error"):
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
