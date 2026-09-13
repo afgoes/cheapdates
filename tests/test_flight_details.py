@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from cheapdates.flight_details import local_time, parse_google_details
+from cheapdates.flight_details import local_time, parse_google_details, parse_google_journey
 from cheapdates.search_models import SearchRequest, Segment, journey, money
 from cheapdates.flight_search import check_journey
 
@@ -22,6 +22,20 @@ def test_captured_details_use_both_groups_and_preserve_unknown_fields():
     assert j.segments[0].operating_carrier is None
     assert j.segments[0].technical_stops is None
     assert j.to_json()['nonstop_verified'] is False
+
+
+def test_google_operator_name_is_not_a_marketing_or_operating_code():
+    data = __import__('json').loads((Path(__file__).parent/'fixtures/google-latam-return.json').read_text())
+    j = parse_google_journey(data)
+    s = j.segments[0]
+    assert s.flight_number == 'LA532'
+    assert s.operating_airline_name == 'Latam Airlines Group'
+    assert s.operating_carrier is None
+    assert j.to_json()['operating_carriers_verified'] is False
+    # A missing operator label is not proof of the marketing carrier's metal.
+    data[2][0][2] = None
+    s = parse_google_journey(data).segments[0]
+    assert s.operating_airline_name is None and s.operating_carrier is None
 
 
 @pytest.mark.parametrize('value,expected', [([8], (8,0)), ([None,31], (0,31)), ([], (0,0))])

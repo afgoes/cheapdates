@@ -121,3 +121,38 @@ server.main()
                 assert data['lowest_fare']['fare_components'][0]['fare_basis']=='KAG5AKBN'
                 assert data['same_fare_as_search_quote_verified'] is False
     asyncio.run(check())
+
+
+def test_matrix_zero_fares_is_not_an_mcp_error():
+    source = '''
+import builtins,json
+from pathlib import Path
+original=builtins.__import__
+def no_browser(name,*a,**kw):
+    if name.startswith('playwright'): raise AssertionError('Browser import forbidden')
+    return original(name,*a,**kw)
+builtins.__import__=no_browser
+from cheapdates import mcp_server as server,flight_search,matrix
+from cheapdates.flight_details import parse_google_journey
+j=parse_google_journey(json.loads(Path('tests/fixtures/google-latam-return.json').read_text()))
+flight_search.fetch_google=lambda request: ([{'price':'736','journey':j}],0)
+matrix.MatrixClient.call=lambda *a: json.loads(Path('tests/fixtures/matrix-no-fares.json').read_text())
+server.main()
+'''
+
+    async def check():
+        params = StdioServerParameters(command=sys.executable, args=['-c', source])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool('search_flights_tool', {'request': dict(
+                    origin='SCL', destination='JFK', departure_date='2026-09-30')})
+                offer = json.loads(result.content[0].text)['offers'][0]
+                assert offer['outbound']['segments'][0]['operating_airline_name'] == 'Latam Airlines Group'
+                result = await session.call_tool('compare_fares_tool', {'offer_id': offer['offer_id']})
+                assert not result.model_dump(by_alias=True)['isError']
+                data = json.loads(result.content[0].text)
+                assert data['status'] == 'no_results' and data['fares'] == []
+                assert data['fare_brand_verification'] == 'unavailable'
+                assert data['search_quote']['price'] == '736'
+    asyncio.run(check())

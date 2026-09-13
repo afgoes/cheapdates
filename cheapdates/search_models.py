@@ -141,6 +141,7 @@ class Segment(Model):
     duration_minutes: Annotated[int, Field(strict=True, ge=0)]
     marketing_carrier: str | None = None
     operating_carrier: str | None = None
+    operating_airline_name: str | None = None
     airline_name: str | None = None
     flight_number: str | None = None
     aircraft: str | None = None
@@ -168,6 +169,7 @@ class Journey(Model):
 
     def to_json(self):
         data = self.model_dump(mode="json")
+        data["operating_carriers_verified"] = all(s.operating_carrier is not None for s in self.segments)
         data["connections"] = len(self.segments) - 1
         if len(self.segments) > 1 or any(s.technical_stops for s in self.segments):
             data["nonstop_verified"] = False

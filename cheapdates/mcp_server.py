@@ -64,6 +64,8 @@ async def search_flights_tool(request: SearchRequest) -> dict:
     for nonstop both ways. Times are inclusive local-hour ranges (7..18 includes 18:59).
     Free browserless Google search shows outbound options with round-trip prices.
     Use select_flight_tool to retrieve return options for the chosen outbound.
+    Initial prices may require returns that fail local filters. Marketing airlines
+    do not establish the operating airline; unknown operators are not verified metal.
     Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
     Prices cover the requested passenger party. References expire after 15 minutes
     and are valid only in this MCP process. Search results do not reserve flights.
@@ -90,6 +92,9 @@ async def compare_fares_tool(offer_id: str, booking_codes: list[str] | None = No
     letters) requests additional airline-specific booking classes on all segments.
     Matrix prices and conditions are separate from the Google quote, even when the
     flights match. Unknown baggage charges and fare brands stay unknown. No booking.
+    This is NOT a Basic-versus-Main Cabin checker: fare_brand_verification is
+    unavailable. Never infer non-Basic, mileage earning or upgrade eligibility from
+    a booking letter, fare basis, price, cabin or partner relationship.
     """
     return await asyncio.to_thread(compare_fares, offer_id, booking_codes)
 
@@ -100,7 +105,8 @@ async def airline_partners_tool(program: Program, airline: str | None = None) ->
 
     Optional airline is a two-character IATA code. Coverage is a curated subset,
     checked_on is the source review date. Unlisted partners and stale entries are
-    unknown. This tool does not establish earning eligibility or award availability.
+    unknown. This tool does not establish earning eligibility, award availability,
+    upgrade certificate eligibility or complimentary upgrades for a ticket.
     """
     return airline_partners(program, airline)
 

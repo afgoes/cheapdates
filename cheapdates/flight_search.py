@@ -128,10 +128,14 @@ def _results(request, rows, skipped, selected=None):
         warnings.append(f"Skipped {skipped} malformed priced rows; results may be incomplete")
     if request.return_date and not selected:
         warnings.append("Prices are round-trip shopping quotes; the return flight has not been selected")
+        warnings.append("Return airline and timing constraints have not been checked. This price may require a return that fails those constraints")
     if any(unknown for _, unknown in valid):
         warnings.append("Some requested properties are provider-reported only; see each offer's unverified_properties")
     if rejected:
         warnings.append("Candidates failing local checks or missing required carrier/connection data were excluded")
+    if selected and not valid:
+        warnings.append("No matching return was found among Google's candidates for this outbound. This does not establish that no matching itinerary exists; try another outbound or explicitly revise the filters")
+    warnings.append("Marketing airline filters do not verify who operates the aircraft. An unknown operator must not be described as airline-operated")
     output, seen = [], set()
     for row, unverified in valid:
         signature = (row["price"], row["journey"].model_dump_json())
@@ -147,6 +151,7 @@ def _results(request, rows, skipped, selected=None):
                      price_scope="round_trip_party" if request.return_date else "one_way_party",
                      passengers=request.passengers.model_dump(), itinerary_complete=complete,
                      selection_stage="complete_itinerary" if complete else "outbound_option",
+                     airline_filter_scope=request.airline_scope,
                      outbound=outbound.to_json(), inbound=inbound.to_json() if inbound else None,
                      unverified_properties=unverified, fare_brand=None, baggage=None,
                      reference_expires_in_seconds=OFFERS.ttl)
