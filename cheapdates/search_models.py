@@ -7,7 +7,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from pydantic.json_schema import SkipJsonSchema
 
 from .core import Seat, _airport
 from .traveler import TravelerProfile
@@ -78,12 +77,12 @@ class SearchRequest(Model):
     inbound: LegFilters = Field(default_factory=LegFilters)
     carry_on_bags: Count = 0
     checked_bags: Count = 0
-    # Retain compatibility with existing false-valued clients without advertising
-    # a filter this provider cannot verify or silently dropping a true request.
-    exclude_basic_economy: SkipJsonSchema[bool] = Field(default=False, exclude=True)
+    exclude_basic_economy: bool = Field(default=False, strict=True,
+        description="Only when explicitly requested by the user: ask Google to exclude Basic fares. Default false. Provider preference only; returned fare brands and exclusion compliance are unverified. Does not filter separate Matrix fares.")
     hide_separate_and_self_transfer: bool = False
     max_price: Annotated[int, Field(strict=True, gt=0)] | None = None
-    limit: Annotated[int, Field(strict=True, ge=1, le=20)] = 5
+    limit: Annotated[int, Field(strict=True, ge=1, le=20)] | None = Field(default=5,
+        description="Maximum returned flight offers, or null for all matching candidates in this Google response (up to 256 reference slots; larger responses require an explicit limit). This is not all airline fare families or exhaustive inventory.")
     sort_by: Literal["price", "duration", "departure"] = "price"
 
     @field_validator("origin", "destination")
@@ -121,8 +120,6 @@ class SearchRequest(Model):
             raise ValueError("Operating-carrier alliance filtering is not supported")
         if self.carry_on_bags > self.passengers.adults + self.passengers.children + self.passengers.infants_in_seat:
             raise ValueError("carry_on_bags cannot exceed passengers with seats")
-        if self.exclude_basic_economy:
-            raise ValueError("exclude_basic_economy is unsupported; no search was run. Retrying cannot enable it, and compare_fares_tool does not verify Basic versus Main. Confirm the seller's exact fare brand and the rules for your specific benefits.")
         return self
 
 

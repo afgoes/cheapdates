@@ -190,3 +190,21 @@ def test_new_program_is_data_only_and_does_not_require_engine_changes(monkeypatc
                         [segment(operating_carrier='XY', operating_airline_name=None)])
     assert rows(result)['priority_boarding']['policy_status'] == 'documented'
     assert result['requirements_verified'] is False
+
+
+def test_status_alone_creates_no_benefit_or_fare_requirements():
+    traveler = TravelerProfile(program='skymiles', tier='platinum')
+    assert traveler.required_benefits == [] and traveler.require_non_basic is False
+    result = assessment(traveler)
+    assert result['status'] == 'no_requirements'
+    assert result['requirements_verified'] is None
+    assert result['segments'][0]['benefits'] == []
+    assert result['non_basic_fare']['status'] == 'not_requested'
+    assert result['non_basic_fare']['action'] is None
+
+
+def test_non_basic_review_requirement_does_not_switch_on_google_filter():
+    req = SearchRequest(origin='JFK', destination='SCL', departure_date='2026-09-23', traveler=profile())
+    assert req.traveler.require_non_basic is True
+    assert providers.google_query(req).exclude_basic_economy is False
+    assert not providers.google_query(req).pb().HasField('exclude_basic_economy')

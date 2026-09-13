@@ -54,12 +54,13 @@ outbound may produce different returns.
 | `seat` | `economy`, `premium_economy`, `business`, `first` |
 | `passengers` | Adults, children, infants in seats/on laps; maximum nine total |
 | `traveler` | Optional program, tier, required benefits and non-Basic review requirement for one traveler; not a search filter |
+| `exclude_basic_economy` | Default false; explicit user request sends Google's Basic-exclusion preference, with compliance unverified |
 | `outbound` / `inbound` | Independent filters for each direction |
 | `carry_on_bags` / `checked_bags` | Google preferences; returned allowance and fees are not verified |
 | `hide_separate_and_self_transfer` | Google preference; ticket protection remains unverified |
 | `max_price` | Maximum Google party price in the requested currency |
 | `sort_by` | `price`, `duration`, `departure` |
-| `limit` | 1–20 offers, default 5 |
+| `limit` | 1–20 offers, default 5; null returns all matching candidates in this Google response |
 
 Each direction supports `max_stops` (0–2 or null), `earliest_departure_hour`,
 `latest_departure_hour`, `earliest_arrival_hour`, `latest_arrival_hour`,
@@ -119,10 +120,23 @@ link for the user to continue manually.
 
 Matrix does not establish baggage allowances here. `total_with_requested_bags` is null
 when bags were requested. No guessed fees, mileage earning or refund benefits are added.
-The unsupported `exclude_basic_economy` search argument is no longer advertised in
-the MCP input schema or echoed in responses. Existing clients may still send `false`.
-Sending `true` fails before any network call and explicitly explains that retrying or
-calling Matrix cannot verify Basic versus Main. It is never silently ignored.
+`exclude_basic_economy` defaults to **false**. Set it to true only when the user
+explicitly requests exclusion: the preference is sent to Google and preserved through
+return selection. Each offer reports whether it was requested, marks compliance as
+unverified, and keeps unknown brands unknown. Loyalty status and benefit requirements
+never turn this filter on automatically. Unknown fares are not locally discarded or
+relabeled as non-Basic. The separate Matrix quotes have **no Basic exclusion** applied;
+`fare_coverage` and warnings state this explicitly when Google used the preference.
+
+These tools do not enumerate every airline fare family (Basic, Standard, Flex, etc.).
+Google returns flight shopping candidates, and Matrix researches selected flight/class
+combinations. Google `limit` defaults to 5; set it to null for all locally matching,
+deduplicated candidates in the response. `fare_coverage` reports matching/returned
+counts and whether this output limit truncated results. Even with no output limit,
+provider inventory and fare-family coverage remain non-exhaustive. A response above the
+256-reference cache capacity requires an explicit limit or narrower search; the tool
+raises a clear error instead of silently truncating an unlimited request. Matrix currently
+considers at most ten solutions per booking-class search and reports that bound.
 
 For a traveler requiring nonstop flights on an airline or its partners, apply
 `max_stops=0` in both directions and retain acceptable partner airlines. Do not replace
@@ -163,7 +177,10 @@ upgrade certificate use or complimentary upgrade eligibility for a particular ti
 ## Traveler requirements and benefit review
 
 There are no saved personal defaults. Ask for the traveler's program, tier and the
-benefits that matter; use the same workflow for every traveler. Program and tier are
+benefits that matter; use the same workflow for every traveler. `required_benefits`
+defaults to an empty list and `require_non_basic` to false. Supplying status alone
+creates no requirements; that assessment returns `status="no_requirements"` and
+`requirements_verified=null`. Program and tier are
 names, never account numbers. The profile applies to one traveler, even when the fare
 covers several passengers. It does not infer companion, credit-card or certificate
 benefits, and a tier does not establish certificate ownership.
@@ -184,7 +201,9 @@ Add this optional field to a search request (illustrative values, not defaults):
 `traveler` stays in the offer's short-lived process memory, is carried through return
 selection, and is not sent to Google or Matrix. Requirements annotate offers; they do
 not filter or rank prices. `require_non_basic=true` explicitly records a requirement
-that remains unverified. An offer must not be presented as satisfying it.
+that remains unverified. An offer must not be presented as satisfying it. This review
+requirement does not automatically enable `exclude_basic_economy`; that separate Google
+preference must also reflect an explicit user choice.
 
 Call `assess_benefits_tool({"offer_id":"..."})` to use that profile, or pass an explicit
 `traveler` to assess another person's requirements without changing the stored profile.
@@ -217,7 +236,7 @@ Each segment reports its operator evidence and each requested benefit:
 | `not_offered` | The source explicitly excludes this tier/operator benefit; other paid/card entitlements are not assessed |
 | `unknown` | Operator evidence or policy coverage is missing, conflicting or due for review |
 
-`requirements_verified` remains false. Fare brand, active status, reservation recognition
+For explicitly supplied requirements, `requirements_verified` remains false. Fare brand, active status, reservation recognition
 and any specific fare/route/inventory conditions require confirmation. Overall
 `policy_conflict` identifies at least one explicit exclusion; `needs_confirmation`
 is not a successful eligibility check. Missing return segments are called out.

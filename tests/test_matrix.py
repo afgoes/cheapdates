@@ -148,3 +148,21 @@ def test_no_default_matrix_fare_does_not_skip_requested_class(detail, req, monke
     result = matrix.fetch_fares(req, j, None, ['N'])
     assert len(result['quotes']) == 1 and len(result['warnings']) == 1
     assert result['quotes'][0]['requested_booking_code'] == 'N'
+
+
+def test_google_basic_preference_does_not_filter_matrix_quotes(detail, req, monkeypatch):
+    from cheapdates import flight_search, fares
+    quote = matrix.parse_detail(detail, req)
+    quote['requested_booking_code'] = None
+    j = quote['journeys'][0]
+    baseline_inputs = matrix.matrix_inputs(req, [j])
+    req.exclude_basic_economy = True
+    assert matrix.matrix_inputs(req, [j]) == baseline_inputs
+    monkeypatch.setattr(flight_search, 'fetch_google', lambda request: ([{'price':'159','journey':j}],0))
+    monkeypatch.setattr(fares, 'fetch_fares', lambda *args: dict(quotes=[quote],warnings=[],malformed_rows=0))
+    offer = flight_search.search_flights(req)['offers'][0]
+    result = fares.compare_fares(offer['offer_id'])
+    assert len(result['fares']) == 1 and result['fares'][0]['basic_economy'] is None
+    assert result['fare_coverage']['basic_exclusion_applied'] is False
+    assert result['fare_coverage']['google_basic_exclusion_requested'] is True
+    assert any('no Basic filter was applied here' in w for w in result['warnings'])

@@ -75,19 +75,22 @@ def assess_journeys(traveler, journeys, *, complete, quote_provider, today=None)
                 operating_carrier=segment.get("operating_carrier"), operating_airline_name=segment.get("operating_airline_name"),
                 policy_operator=operator, operator_evidence=evidence, benefits=assessments))
     unsupported = any(b["policy_status"] == "not_offered" for s in segments for b in s["benefits"])
+    has_requirements = bool(traveler.required_benefits or traveler.require_non_basic)
     return dict(
-        status="policy_conflict" if unsupported else "needs_confirmation",
+        status="no_requirements" if not has_requirements else "policy_conflict" if unsupported else "needs_confirmation",
         traveler=traveler.model_dump(), traveler_scope="One self-reported traveler; no companion or party-wide eligibility inferred",
         itinerary_complete=complete, quote_provider=quote_provider,
-        requirements_verified=False,
-        non_basic_fare={"required": traveler.require_non_basic, "status": "unknown", "fare_brand": None,
-                        "action": "Verify the exact seller fare brand. A cabin, booking letter or fare basis alone does not establish non-Basic."},
+        requirements_verified=False if has_requirements else None,
+        non_basic_fare={"required": traveler.require_non_basic,
+                        "status": "unknown" if traveler.require_non_basic else "not_requested", "fare_brand": None,
+                        "action": "Verify the exact seller fare brand. A cabin, booking letter or fare basis alone does not establish non-Basic." if traveler.require_non_basic else None},
         segments=segments, sources=sources,
         coverage=[dict(program=p.program, tiers=list(p.tiers), operating_airline=p.operator,
                        benefits=[r.benefit for r in p.rules]) for p in POLICIES],
         warnings=["Policy support is not confirmed ticket eligibility. Unlisted programs, tiers, operators and benefits remain unknown.",
                   "Benefits and non-Basic requirements annotate offers; they do not filter or rank prices."] +
-                 ([] if complete else ["Only the supplied segments were assessed; a return or complete itinerary has not been verified."]),
+                 ([] if complete else ["Only the supplied segments were assessed; a return or complete itinerary has not been verified."]) +
+                 ([] if has_requirements else ["No benefit or non-Basic requirement was supplied; none was inferred from loyalty status."]),
     )
 
 

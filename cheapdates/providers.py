@@ -27,7 +27,8 @@ def google_query(request: SearchRequest):
                            passengers=ff.Passengers(**request.passengers.model_dump()),
                            max_price=request.max_price, carry_on_bags=request.carry_on_bags,
                            checked_bags=request.checked_bags,
-                           hide_separate_and_self_transfer=request.hide_separate_and_self_transfer)
+                           hide_separate_and_self_transfer=request.hide_separate_and_self_transfer,
+                           exclude_basic_economy=request.exclude_basic_economy)
 
 
 def fetch_google(request, outbound=None):

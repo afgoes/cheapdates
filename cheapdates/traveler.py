@@ -22,10 +22,8 @@ class TravelerProfile(BaseModel):
 
     program: str = Field(min_length=1, max_length=80, description="Loyalty program name, not an account number. Any program is accepted; policy coverage is limited and explicit.")
     tier: str = Field(min_length=1, max_length=80, description="Status tier in this program. This is self-reported and applies to one traveler only.")
-    required_benefits: list[Benefit] = Field(default_factory=lambda: [
-        "seat_selection", "extra_baggage", "priority_boarding", "priority_check_in",
-        "complimentary_upgrades", "upgrade_certificates", "mileage_earning",
-    ], min_length=1, max_length=9)
+    required_benefits: list[Benefit] = Field(default_factory=list, max_length=9,
+        description="Only benefits explicitly requested by this traveler. Empty by default; status alone must not create requirements.")
     require_non_basic: bool = Field(default=False, description="Record a requirement for review; this does not filter search results or verify a fare brand.")
 
     @field_validator("program", "tier", mode="before")

@@ -72,6 +72,11 @@ async def search_flights_tool(request: SearchRequest) -> dict:
     Optional traveler records any program/tier and requested benefits locally;
     use assess_benefits_tool on an offer for sourced policy support and missing facts.
     traveler.require_non_basic records a requirement for review, not a fare filter.
+    Leave exclude_basic_economy=false unless the user asks to exclude Basic. True
+    sends a Google preference, with compliance marked unverified; it does not apply
+    to Matrix quotes. Do not infer fare exclusions or benefits from status alone.
+    limit=null returns all matching candidates in this response; fare_coverage
+    reports truncation. Providers do not expose all branded fare bundles.
     Initial prices may require returns that fail local filters. Marketing airlines
     do not establish the operating airline; unknown operators are not verified metal.
     Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
@@ -100,6 +105,7 @@ async def compare_fares_tool(offer_id: str, booking_codes: list[str] | None = No
     letters) requests additional airline-specific booking classes on all segments.
     Matrix prices and conditions are separate from the Google quote, even when the
     flights match. Unknown baggage charges and fare brands stay unknown. No booking.
+    A Google Basic-exclusion preference does not filter these separate Matrix quotes.
     This is NOT a Basic-versus-Main Cabin checker: fare_brand_verification is
     unavailable. Never infer non-Basic, mileage earning or upgrade eligibility from
     a booking letter, fare basis, price, cabin or partner relationship.
@@ -130,6 +136,8 @@ async def assess_benefits_tool(
     Provide exactly one of offer_id or operating_airline (IATA code for a policy
     lookup without a search). Supply traveler.program, tier and required_benefits;
     an offer can reuse the traveler supplied at search. No account number is needed.
+    required_benefits defaults to empty and require_non_basic to false. Only set
+    requirements explicitly requested by the user; status alone adds none.
     Any program/tier is accepted; coverage lists the reviewed policy subset.
     Unsupported or stale policies are unknown, not ineligible. Documented benefits
     remain conditional on the ticket and traveler. Explicit policy exclusions are

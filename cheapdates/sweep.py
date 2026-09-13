@@ -50,7 +50,8 @@ def _one(origin, dest, day: dt.date, trip_length, currency, seat, max_stops):
         ret = day + dt.timedelta(days=trip_length)
         legs.append(ff.FlightQuery(date=ret.isoformat(), from_airport=dest, to_airport=origin, max_stops=max_stops))
     err = None
-    q = ff.create_query(flights=legs, trip="round-trip" if trip_length else "one-way", currency=currency, seat=seat.replace("_", "-"))
+    q = ff.create_query(flights=legs, trip="round-trip" if trip_length else "one-way", currency=currency,
+                        seat=seat.replace("_", "-"), exclude_basic_economy=False)
     for attempt in range(3):
         try:
             flights = _fetch_offers(q)

@@ -100,6 +100,8 @@ def _results(request, rows, skipped, selected=None):
             unverified.append("baggage_allowances_and_total")
         if request.hide_separate_and_self_transfer:
             unverified.append("separate_tickets_and_self_transfer")
+        if request.exclude_basic_economy:
+            unverified.append("basic_economy_exclusion")
         valid.append((row, unverified))
     def sort_key(item):
         row = item[0]
@@ -136,6 +138,11 @@ def _results(request, rows, skipped, selected=None):
     if selected and not valid:
         warnings.append("No matching return was found among Google's candidates for this outbound. This does not establish that no matching itinerary exists; try another outbound or explicitly revise the filters")
     warnings.append("Marketing airline filters do not verify who operates the aircraft. An unknown operator must not be described as airline-operated")
+    if request.exclude_basic_economy:
+        warnings.append("Basic exclusion was requested from Google by the caller. Returned fare brands and filter compliance are unverified; unknown fares are not confirmed non-Basic")
+    matching_count = len({(row["price"], row["journey"].model_dump_json()) for row, _ in valid})
+    if request.limit is None and matching_count > OFFERS.capacity:
+        raise ValueError(f"The response has {matching_count} matching candidates, exceeding the {OFFERS.capacity}-offer reference capacity. Set an explicit limit or narrow the search; no truncated result was returned")
     output, seen = [], set()
     for row, unverified in valid:
         signature = (row["price"], row["journey"].model_dump_json())
@@ -153,22 +160,29 @@ def _results(request, rows, skipped, selected=None):
                      selection_stage="complete_itinerary" if complete else "outbound_option",
                      airline_filter_scope=request.airline_scope,
                      outbound=outbound.to_json(), inbound=inbound.to_json() if inbound else None,
-                     unverified_properties=unverified, fare_brand=None, baggage=None,
+                     unverified_properties=unverified, fare_brand=None, basic_economy=None, baggage=None,
+                     basic_exclusion=dict(requested=request.exclude_basic_economy,
+                         verification="unverified" if request.exclude_basic_economy else "not_requested"),
                      reference_expires_in_seconds=OFFERS.ttl)
         entry = dict(request=request, outbound=outbound, inbound=inbound, offer=offer,
                      selection_token=row.get("selection_token"),
                      unverified_properties=unverified)
         if request.traveler:
-            offer["benefit_review"] = dict(status="needs_confirmation", requirements_verified=False,
+            has_requirements = bool(request.traveler.required_benefits or request.traveler.require_non_basic)
+            offer["benefit_review"] = dict(status="needs_confirmation" if has_requirements else "no_requirements",
+                requirements_verified=False if has_requirements else None,
                 traveler=request.traveler.model_dump(), next_tool="assess_benefits_tool",
-                note="Requirements recorded for one traveler. No fare-brand or benefit filter was applied.")
+                note="The traveler profile does not enable filters. See basic_exclusion for any separately requested Google preference.")
         offer["offer_id"] = OFFERS.put(entry)
         output.append(offer)
-        if len(output) >= request.limit:
+        if request.limit is not None and len(output) >= request.limit:
             break
     return dict(status="partial" if skipped else "ok" if output else "no_matching_results" if rows else "no_results",
                 provider=request.provider, retrieved_at=fetched, request=request.model_dump(mode="json"),
                 offers=output, comparison=comparison, rejected=rejected, malformed_rows=skipped, warnings=warnings,
+                fare_coverage=dict(exhaustive=False, all_fare_families=False, fare_brand_verification="unavailable",
+                    matching_candidates=matching_count, returned_offers=len(output), requested_limit=request.limit,
+                    truncated_by_limit=matching_count > len(output)),
                 scope="Available provider candidates; not an exhaustive inventory search")
 
 
