@@ -13,6 +13,10 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP
 
 from .core import Backend, Seat, cheapest_dates
+from .search_models import SearchRequest
+from .flight_search import search_flights, select_flight
+from .fares import compare_fares
+from .partners import Program, airline_partners
 
 mcp = FastMCP("cheapdates")
 
@@ -50,6 +54,55 @@ async def cheapest_dates_tool(
     if res.status == "error":
         raise RuntimeError("Flight search failed for every requested date. " + "; ".join(res.warnings[:3]))
     return res.to_json()
+
+
+@mcp.tool()
+async def search_flights_tool(request: SearchRequest) -> dict:
+    """Search flight alternatives for explicit dates, with details and airline/alliance filters.
+
+    origin/destination are IATA codes. Use outbound.max_stops=0 and inbound.max_stops=0
+    for nonstop both ways. Times are inclusive local-hour ranges (7..18 includes 18:59).
+    google is keyless and shows outbound options with round-trip shopping prices.
+    serpapi requires SERPAPI_API_KEY and supports select_flight_tool for returns.
+    Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
+    Prices cover the requested passenger party. References expire after 15 minutes
+    and are valid only in this MCP process. Search results do not reserve flights.
+    """
+    return await asyncio.to_thread(search_flights, request)
+
+
+@mcp.tool()
+async def select_flight_tool(offer_id: str) -> dict:
+    """Select a search offer. For a SerpApi round trip, retrieve return alternatives.
+
+    Returned offers contain the chosen outbound plus a return and a combined price.
+    Use one of those offer IDs with compare_fares_tool. A keyless Google round-trip
+    quote cannot identify a return; repeat search with provider=serpapi first.
+    """
+    return await asyncio.to_thread(select_flight, offer_id)
+
+
+@mcp.tool()
+async def compare_fares_tool(offer_id: str) -> dict:
+    """Retrieve fare brands, sellers, baggage text and conditions for selected flights.
+
+    Requires SERPAPI_API_KEY. Round trips require a selected return; one-way Google
+    offers can be compared directly when flight numbers are available. Prices and
+    conditions are fetched together after verifying the exact flights. Missing
+    terms/fees remain unknown. Separate-ticket options are excluded. No booking is made.
+    """
+    return await asyncio.to_thread(compare_fares, offer_id)
+
+
+@mcp.tool()
+async def airline_partners_tool(program: Program, airline: str | None = None) -> dict:
+    """Look up sourced partner relationships for AAdvantage, SkyMiles or LATAM Pass.
+
+    Optional airline is a two-character IATA code. Coverage is a curated subset,
+    checked_on is the source review date. Unlisted partners and stale entries are
+    unknown. This tool does not establish earning eligibility or award availability.
+    """
+    return airline_partners(program, airline)
 
 
 def main():

@@ -1,7 +1,7 @@
 [project]
 name = "cheapdates"
-version = "0.2.0"
-description = "Cheapest-dates calendar for Google Flights: one-call price graph via a real browser, with a fast-flights sweep fallback. CLI + MCP server."
+version = "0.3.0"
+description = "Flight calendars, itinerary search, airline filters and optional fare comparison. CLI + MCP server."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

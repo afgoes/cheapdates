@@ -1,6 +1,11 @@
 # cheapdates
 
-Cheapest dates to fly a route, straight from Google Flights. CLI + MCP server.
+Flight calendars, detailed itineraries, airline/alliance filters, and fare comparisons. CLI + MCP server.
+
+Version 0.3 adds four MCP tools alongside the existing calendar: `search_flights_tool`,
+`select_flight_tool`, `compare_fares_tool`, and `airline_partners_tool`.
+See [detailed search and fare comparison](docs/flight-search.md) for examples, provider setup,
+and the distinction between requested filters and verified itinerary details.
 
 Why this exists: Google's price calendar (`GetCalendarGraph`) is signed per-request by BotGuard, so
 every pure-HTTP client (fli `dates`, google-flights-mcp, …) has returned empty results since mid-2026.
