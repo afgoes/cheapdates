@@ -17,6 +17,8 @@ from .search_models import SearchRequest
 from .flight_search import search_flights, select_flight
 from .fares import compare_fares
 from .partners import Program, airline_partners
+from .traveler import TravelerProfile
+from .benefits import assess_benefits
 
 mcp = FastMCP("cheapdates")
 
@@ -67,6 +69,9 @@ async def search_flights_tool(request: SearchRequest) -> dict:
     A journey with connections is not nonstop. Partner-operated flights may match
     the traveler: do not impose a same-airline operator requirement unless requested.
     Non-Basic fares and personal benefits cannot be guaranteed by this search.
+    Optional traveler records any program/tier and requested benefits locally;
+    use assess_benefits_tool on an offer for sourced policy support and missing facts.
+    traveler.require_non_basic records a requirement for review, not a fare filter.
     Initial prices may require returns that fail local filters. Marketing airlines
     do not establish the operating airline; unknown operators are not verified metal.
     Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
@@ -112,6 +117,28 @@ async def airline_partners_tool(program: Program, airline: str | None = None) ->
     upgrade certificate eligibility or complimentary upgrades for a ticket.
     """
     return airline_partners(program, airline)
+
+
+@mcp.tool()
+async def assess_benefits_tool(
+    offer_id: str | None = None,
+    traveler: TravelerProfile | None = None,
+    operating_airline: str | None = None,
+) -> dict:
+    """Review loyalty benefits per segment, using free, locally reviewed policy sources.
+
+    Provide exactly one of offer_id or operating_airline (IATA code for a policy
+    lookup without a search). Supply traveler.program, tier and required_benefits;
+    an offer can reuse the traveler supplied at search. No account number is needed.
+    Any program/tier is accepted; coverage lists the reviewed policy subset.
+    Unsupported or stale policies are unknown, not ineligible. Documented benefits
+    remain conditional on the ticket and traveler. Explicit policy exclusions are
+    reported separately. Marketing codes never establish the operator. Review both
+    directions; one traveler's tier does not apply to every passenger or companion.
+    require_non_basic records a requirement but cannot verify or filter fare brands.
+    No paid API, browser, account lookup or automatic certificate ownership inference.
+    """
+    return assess_benefits(offer_id, traveler, operating_airline)
 
 
 def main():

@@ -158,6 +158,10 @@ def _results(request, rows, skipped, selected=None):
         entry = dict(request=request, outbound=outbound, inbound=inbound, offer=offer,
                      selection_token=row.get("selection_token"),
                      unverified_properties=unverified)
+        if request.traveler:
+            offer["benefit_review"] = dict(status="needs_confirmation", requirements_verified=False,
+                traveler=request.traveler.model_dump(), next_tool="assess_benefits_tool",
+                note="Requirements recorded for one traveler. No fare-brand or benefit filter was applied.")
         offer["offer_id"] = OFFERS.put(entry)
         output.append(offer)
         if len(output) >= request.limit:

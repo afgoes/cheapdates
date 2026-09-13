@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic.json_schema import SkipJsonSchema
 
 from .core import Seat, _airport
+from .traveler import TravelerProfile
 
 Count = Annotated[int, Field(strict=True, ge=0, le=9)]
 Hour = Annotated[int, Field(strict=True, ge=0, le=23)]
@@ -67,6 +68,7 @@ class SearchRequest(Model):
     currency: str = "USD"
     seat: Seat = "economy"
     passengers: Passengers = Field(default_factory=Passengers)
+    traveler: TravelerProfile | None = Field(default=None, description="Optional loyalty status and benefit requirements for one traveler. Used locally for review, never sent to search providers or used as a verified fare filter.")
     provider: Literal["google"] = "google"
     include_airlines: list[str] = Field(default_factory=list, max_length=20)
     exclude_airlines: list[str] = Field(default_factory=list, max_length=20)

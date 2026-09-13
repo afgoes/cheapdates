@@ -9,6 +9,7 @@ from .flight_search import OFFERS, check_journey
 from .google_selection import SelectedQuery
 from .matrix import fetch_fares
 from .search_models import money
+from .benefits import assess_journeys
 
 
 def pinned_journey(journey):
@@ -76,6 +77,9 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
                           taxes=quote["taxes"], conditions=conditions(quote["ticket_notes"]),
                           baggage_terms=[], total_with_requested_bags=None if request.carry_on_bags or request.checked_bags else price,
                           flight_details={key: j.to_json() for key, j in zip(expected, selected)}, schedule_changed=changed))
+        if request.traveler:
+            fares[-1]["benefit_assessment"] = assess_journeys(request.traveler,
+                fares[-1]["flight_details"], complete=True, quote_provider="ita_matrix")
     if rejected and not fares:
         raise ValueError("Matrix returned different flights or flights failing the requested constraints; no fare conditions were attached")
     fares.sort(key=lambda fare: Decimal(fare["price"]))

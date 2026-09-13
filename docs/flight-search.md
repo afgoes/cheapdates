@@ -53,6 +53,7 @@ outbound may produce different returns.
 | `airline_scope` | `marketing` by default; `operating` rejects candidates without verified operator codes |
 | `seat` | `economy`, `premium_economy`, `business`, `first` |
 | `passengers` | Adults, children, infants in seats/on laps; maximum nine total |
+| `traveler` | Optional program, tier, required benefits and non-Basic review requirement for one traveler; not a search filter |
 | `outbound` / `inbound` | Independent filters for each direction |
 | `carry_on_bags` / `checked_bags` | Google preferences; returned allowance and fees are not verified |
 | `hide_separate_and_self_transfer` | Google preference; ticket protection remains unverified |
@@ -158,6 +159,92 @@ sources. Programs: `aadvantage`, `skymiles`, `latam_pass`. Omit `airline` to lis
 Unlisted relationships are unknown. After 90 days the snapshot becomes `refresh_required`.
 Partnership does not establish booking-class earning eligibility, award availability,
 upgrade certificate use or complimentary upgrade eligibility for a particular ticket.
+
+## Traveler requirements and benefit review
+
+There are no saved personal defaults. Ask for the traveler's program, tier and the
+benefits that matter; use the same workflow for every traveler. Program and tier are
+names, never account numbers. The profile applies to one traveler, even when the fare
+covers several passengers. It does not infer companion, credit-card or certificate
+benefits, and a tier does not establish certificate ownership.
+
+Add this optional field to a search request (illustrative values, not defaults):
+
+```json
+{
+  "traveler": {
+    "program": "skymiles",
+    "tier": "platinum",
+    "required_benefits": ["seat_selection", "extra_baggage", "priority_boarding"],
+    "require_non_basic": true
+  }
+}
+```
+
+`traveler` stays in the offer's short-lived process memory, is carried through return
+selection, and is not sent to Google or Matrix. Requirements annotate offers; they do
+not filter or rank prices. `require_non_basic=true` explicitly records a requirement
+that remains unverified. An offer must not be presented as satisfying it.
+
+Call `assess_benefits_tool({"offer_id":"..."})` to use that profile, or pass an explicit
+`traveler` to assess another person's requirements without changing the stored profile.
+Review a complete round-trip offer to cover both directions. The tool also works
+without shopping, using an explicit operator:
+
+```json
+{
+  "operating_airline": "DL",
+  "traveler": {
+    "program": "latam_pass",
+    "tier": "black",
+    "required_benefits": ["seat_selection", "extra_baggage"]
+  }
+}
+```
+
+Supply exactly one of `offer_id` or `operating_airline`. A standalone operator lookup
+is a policy inquiry, not verification of a flight. Supported benefit categories are
+`seat_selection`, `extra_baggage`, `priority_boarding`, `priority_check_in`,
+`priority_baggage_handling`, `lounge_access`, `complimentary_upgrades`,
+`upgrade_certificates`, and `mileage_earning`. Any program/tier name is accepted;
+accepting an input does not imply policy coverage.
+
+Each segment reports its operator evidence and each requested benefit:
+
+| `policy_status` | Meaning |
+|---|---|
+| `documented` | A reviewed tier/operator policy lists the benefit; ticket eligibility is still conditional |
+| `not_offered` | The source explicitly excludes this tier/operator benefit; other paid/card entitlements are not assessed |
+| `unknown` | Operator evidence or policy coverage is missing, conflicting or due for review |
+
+`requirements_verified` remains false. Fare brand, active status, reservation recognition
+and any specific fare/route/inventory conditions require confirmation. Overall
+`policy_conflict` identifies at least one explicit exclusion; `needs_confirmation`
+is not a successful eligibility check. Missing return segments are called out.
+Non-Basic status and mileage/upgrade eligibility cannot be inferred from fare letters.
+
+Initial policy coverage is deliberately a subset: selected SkyMiles benefits on LATAM,
+the explicit SkyMiles complimentary-upgrade exclusion on Virgin Atlantic, and selected
+LATAM Pass benefits on Delta. These are based on the official
+[Delta partner benefits](https://www.delta.com/us/en/skymiles/medallion-program/international-partner-skyteam-benefits)
+and [LATAM Pass Delta benefits](https://latampass.latam.com/en_un/associated-airlines/delta-air-lines)
+pages reviewed on September 13, 2026. The output lists exact covered tiers and benefits.
+Unlisted combinations, including same-airline benefits not yet reviewed, stay unknown.
+No general partner, alliance, or Basic-fare eligibility rule is assumed.
+
+Policies carry source URLs and review dates. After 90 days they become unknown until
+reviewed again; travel beyond that review window also requests a refresh. No live
+account or policy-site lookup happens during assessment. Exact operator display names
+can identify a policy group, but never fill an operating-carrier IATA field. Marketing
+codes and partial name matches are insufficient. Matrix's explicit `OPERATED BY`
+disclosure is preserved separately, and each Matrix fare assessment uses only that
+quote's flight evidence; Google's operator/fare facts are not transferred to it.
+
+To extend coverage, add sourced entries in `cheapdates/benefit_policies.py` with explicit
+program, tier, operator and benefit scopes, conditions and a review date. Add a regression
+case for scope exclusions as well as a positive case. Do not turn absent source rows
+into negative rules or apply one program's rules to another. The assessment engine is
+independent of the program registry.
 
 ## Validation
 
