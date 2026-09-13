@@ -1,0 +1,199 @@
+{
+  "bookingDetails": {
+    "ext": {
+      "totalPrice": "USD158.40"
+    },
+    "itinerary": {
+      "distance": {
+        "units": "MI",
+        "value": 1238
+      },
+      "slices": [
+        {
+          "destination": {
+            "city": {
+              "name": "Austin"
+            },
+            "code": "AUS",
+            "name": "Austin-Bergstrom International"
+          },
+          "origin": {
+            "city": {
+              "name": "Los Angeles"
+            },
+            "code": "LAX",
+            "name": "Los Angeles International"
+          },
+          "segments": [
+            {
+              "bookingInfos": [
+                {
+                  "bookingCode": "N",
+                  "cabin": "COACH"
+                }
+              ],
+              "carrier": {
+                "code": "UA",
+                "shortName": "United"
+              },
+              "destination": {
+                "city": {
+                  "name": "Austin"
+                },
+                "code": "AUS"
+              },
+              "flight": {
+                "number": 1496
+              },
+              "legs": [
+                {
+                  "aircraft": {
+                    "shortName": "Boeing 737"
+                  },
+                  "destination": {
+                    "city": {
+                      "name": "Austin"
+                    },
+                    "code": "AUS",
+                    "name": "Austin-Bergstrom International"
+                  },
+                  "origin": {
+                    "city": {
+                      "name": "Los Angeles"
+                    },
+                    "code": "LAX"
+                  },
+                  "services": [
+                    {
+                      "amenities": [
+                        "Non-smoking"
+                      ],
+                      "meals": [
+                        "Food for Purchase"
+                      ]
+                    }
+                  ],
+                  "arrival": "2026-10-14T15:54-05:00",
+                  "departure": "2026-10-14T10:50-07:00",
+                  "duration": 184
+                }
+              ],
+              "origin": {
+                "city": {
+                  "name": "Los Angeles"
+                },
+                "code": "LAX"
+              },
+              "arrival": "2026-10-14T15:54-05:00",
+              "departure": "2026-10-14T10:50-07:00",
+              "duration": 184
+            }
+          ],
+          "arrival": "2026-10-14T15:54-05:00",
+          "departure": "2026-10-14T10:50-07:00",
+          "stopCount": 0
+        }
+      ]
+    },
+    "pricings": [
+      {
+        "ext": {
+          "pax": {
+            "adults": 1
+          },
+          "totalPrice": "USD158.40"
+        },
+        "displayPrice": "USD158.40"
+      }
+    ],
+    "tickets": [
+      {
+        "pricings": [
+          {
+            "ext": {
+              "pax": {
+                "adults": 1
+              },
+              "taxTotals": [
+                {
+                  "tax": {
+                    "key": "0/0",
+                    "name": "US Transportation Tax"
+                  },
+                  "code": "US",
+                  "totalDisplayPrice": "USD9.98"
+                },
+                {
+                  "tax": {
+                    "key": "0/1",
+                    "name": "US Passenger Facility Charge"
+                  },
+                  "code": "XF",
+                  "totalDisplayPrice": "USD4.50"
+                },
+                {
+                  "tax": {
+                    "key": "0/2",
+                    "name": "United States Flight Segment Tax Domestic"
+                  },
+                  "code": "ZP",
+                  "totalDisplayPrice": "USD5.30"
+                },
+                {
+                  "tax": {
+                    "key": "0/3",
+                    "name": "United States Passenger Civil Aviation Security Service Fee"
+                  },
+                  "code": "AY",
+                  "totalDisplayPrice": "USD5.60"
+                }
+              ],
+              "totalPrice": "USD158.40"
+            },
+            "fareCalculations": [
+              {
+                "lines": [
+                  "LAX UA AUS 133.02KAG5AKBN USD 133.02 END ZP LAX XT 9.98US 5.30ZP 5.60AY 4.50XF LAX4.50"
+                ]
+              }
+            ],
+            "fares": [
+              {
+                "bookingInfos": [
+                  {
+                    "segment": {
+                      "destination": "AUS",
+                      "origin": "LAX"
+                    },
+                    "bookingCode": "N",
+                    "cabin": "COACH"
+                  }
+                ],
+                "ptcs": [
+                  "ADT"
+                ],
+                "carrier": "UA",
+                "code": "KAG5AKBN",
+                "destinationCity": "AUS",
+                "displayAdjustedPrice": "USD133.02",
+                "key": "0/0",
+                "originCity": "LAX",
+                "tag": "ONE-WAY"
+              }
+            ],
+            "notes": [
+              "Changes to this ticket will incur a penalty fee.",
+              "No changes may be made to this ticket after departure.",
+              "This ticket is non-refundable.",
+              "Cancellation of this ticket will incur a penalty fee."
+            ],
+            "displayPrice": "USD158.40"
+          }
+        ],
+        "displayPrice": "USD158.40"
+      }
+    ],
+    "displayTotal": "USD158.40",
+    "passengerCount": 1
+  }
+}
