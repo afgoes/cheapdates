@@ -45,6 +45,8 @@ def airline_partners(program: Program, airline: str | None = None):
                 status="refresh_required" if stale else "ok", coverage="curated_subset",
                 airlines=[dict(code=c, name=record["airlines"].get(c),
                                relationship="documented_partner" if c in record["airlines"] and not stale else "unknown",
-                               earning_eligibility="unknown", award_availability="unknown") for c in codes],
+                               earning_eligibility="unknown", award_availability="unknown",
+                               upgrade_certificate_eligibility="unknown", complimentary_upgrade_eligibility="unknown") for c in codes],
                 warnings=["Directory membership is not fare eligibility. Check booking class, marketing and operating carriers, ticket rules and travel dates against the source",
+                          "A partnership does not establish mileage earning, certificate use or complimentary upgrades for a particular ticket",
                           "An unlisted airline is unknown, not necessarily a non-partner. Award inventory is not searched"])

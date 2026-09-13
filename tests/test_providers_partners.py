@@ -13,6 +13,8 @@ def test_partner_relationship_is_not_earning_eligibility(monkeypatch):
     assert data['airlines'][0]['relationship'] == 'documented_partner'
     assert data['airlines'][0]['earning_eligibility'] == 'unknown'
     assert data['airlines'][0]['award_availability'] == 'unknown'
+    assert data['airlines'][0]['upgrade_certificate_eligibility'] == 'unknown'
+    assert data['airlines'][0]['complimentary_upgrade_eligibility'] == 'unknown'
     assert partners.airline_partners('skymiles','ZZ')['airlines'][0]['relationship'] == 'unknown'
 
 

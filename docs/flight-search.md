@@ -41,6 +41,9 @@ For a one-way search, its offer ID can go directly to `compare_fares_tool`.
 Google selection uses encoded flight numbers, airports and dates through HTTP. Initial
 round-trip search prices do not identify a return: `itinerary_complete=false`. Return
 selection provides a combined party quote; outbound and return prices are never added.
+The initial quote may require a return that fails your local filters. A return search
+with no matching candidates does not prove that no suitable itinerary exists; another
+outbound may produce different returns.
 
 | Search option | Meaning |
 |---|---|
@@ -67,6 +70,11 @@ Local checks exclude candidates with conflicting routes, dates, airlines, times 
 connections. Airline exclusions operate on available Google candidates and can reduce
 coverage. Alliance membership is provider-reported. Missing operator codes cause
 operating-airline hard filters to return no matching results.
+Segments preserve Google's explicit `operating_airline_name` label (for example,
+`Latam Airlines Group`) separately from the marketing airline. A display name is not
+converted into an IATA operator code, and a missing label does not prove that the
+marketing carrier operates the flight. `operating_carriers_verified=false` means that
+the journey must not be described as verified airline-operated throughout.
 
 `connections` counts segments minus one. `nonstop_verified` remains null when technical
 stops are unknown. A nonstop preference alone is not evidence of zero technical stops.
@@ -96,6 +104,10 @@ tax components, ticket restriction notes, and premium over the cheapest Matrix r
 `fare_brand` and seller remain null: a booking class or fare basis does not establish a
 consumer label such as Basic, Standard or Flex. Known negative restriction notes are
 normalized conservatively. Notes are summaries, not complete fare-rule text.
+This tool does **not** verify Basic versus Main Cabin. It returns
+`fare_brand_verification="unavailable"` and `basic_economy=null` on fares, even when
+booking classes and restriction notes are available. Mileage and upgrade eligibility
+are explicitly `unknown`; neither a partner relationship nor a fare code establishes them.
 
 **Google and Matrix quotes remain separate.** `search_quote` preserves Google's original
 price; Matrix's price and conditions belong together. Matching flights does not establish
@@ -125,11 +137,17 @@ Offer IDs stay in memory for 15 minutes, with at most 256 entries. They disappea
 restart; expiry does not promise fare availability. Google selection tokens stay in memory.
 Transport and parsing failures raise MCP errors. `no_results` means a completed search
 found no fares; `partial` signals malformed or excluded fare details.
+Matrix's explicit zero-fare response can omit the `solutions` array. It returns
+`status="no_results"` with `no_fares_reason="no_matrix_fares_for_selected_flights"`,
+preserving the Google quote and itinerary link. It is not a parser error and does not
+invalidate the Google price or establish flight unavailability. Missing result data
+without an explicit zero count still raises an error.
 
 `airline_partners_tool({"program":"skymiles","airline":"LA"})` looks up curated official
 sources. Programs: `aadvantage`, `skymiles`, `latam_pass`. Omit `airline` to list entries.
 Unlisted relationships are unknown. After 90 days the snapshot becomes `refresh_required`.
-Partnership does not establish booking-class earning eligibility or award availability.
+Partnership does not establish booking-class earning eligibility, award availability,
+upgrade certificate use or complimentary upgrade eligibility for a particular ticket.
 
 ## Validation
 

@@ -71,6 +71,7 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
                       [(s.departure_local, s.arrival_local) for s in entry[key].segments]
                       for key, j in zip(("outbound", "inbound"), selected))
         fares.append(dict(provider="ita_matrix", price=price, currency=request.currency, seller=None, fare_brand=None,
+                          basic_economy=None,
                           requested_booking_code=quote['requested_booking_code'], fare_components=quote["fare_components"],
                           taxes=quote["taxes"], conditions=conditions(quote["ticket_notes"]),
                           baggage_terms=[], total_with_requested_bags=None if request.carry_on_bags or request.checked_bags else price,
@@ -96,6 +97,9 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
                 passengers=request.passengers.model_dump(), currency=request.currency,
                 search_quote={"provider": "google", "price": entry["offer"]["price"], "retrieved_at": entry["offer"]["retrieved_at"]},
                 same_fare_as_search_quote_verified=False, fares=fares, lowest_fare=fares[0] if fares else None,
+                fare_brand_verification="unavailable",
+                no_fares_reason="no_matrix_fares_for_selected_flights" if not fares and not skipped else None,
+                benefits_eligibility={"mileage_earning": "unknown", "upgrade_certificates": "unknown", "complimentary_upgrades": "unknown"},
                 lowest_known_total_with_bags=known[0] if known else None,
                 google_flights_url=SelectedQuery(request, journeys, entry["selection_token"]).booking_url(),
                 matrix_url="https://matrix.itasoftware.com/search", warnings=warnings,

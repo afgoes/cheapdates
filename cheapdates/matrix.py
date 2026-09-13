@@ -197,7 +197,13 @@ def fetch_fares(request, outbound, inbound, booking_codes):
         search = client.call("/v1/search", dict(summarizers=["solutionList"], inputs=inputs,
                              summarizerSet="wholeTrip", name="specificDatesSlice"))
         try:
-            solutions = search["solutionList"]["solutions"]
+            listing = search["solutionList"]
+            # Matrix omits `solutions` when the valid result count is zero.
+            # Only accept the explicit count; missing data alone is not no fares.
+            if "solutions" not in listing and type(listing.get("solutionCount")) is int and listing["solutionCount"] == 0:
+                solutions = []
+            else:
+                solutions = listing["solutions"]
             if not isinstance(solutions, list):
                 raise ValueError("ITA Matrix did not return a solution list")
             for solution in solutions[:10]:
@@ -213,7 +219,7 @@ def fetch_fares(request, outbound, inbound, booking_codes):
                 except ValueError:
                     skipped += 1
             if not solutions:
-                warnings.append(f"Matrix found no fare for {'booking class ' + code if code else 'the selected flights'}")
+                warnings.append(f"Matrix found no fare for {'booking class ' + code if code else 'the selected flights'}. This does not invalidate the Google quote or prove the flights are unavailable")
         except (KeyError, TypeError, IndexError):
             raise ValueError("ITA Matrix returned malformed search results") from None
     if skipped and not quotes:

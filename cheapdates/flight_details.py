@@ -73,6 +73,8 @@ def parse_google_journey(data):
             duration_minutes=s[11], aircraft=s[17],
             marketing_carrier=code, flight_number=f"{code}{number}" if code and number else None,
             airline_name=carrier[3] if len(carrier) > 3 else None,
-            # Operating carrier, cabin and technical stops have no verified indexes.
+            operating_airline_name=s[2].strip() if isinstance(s[2], str) and s[2].strip() else None,
+            # Google supplies an operator display name, not its IATA code.
+            # An absent label does not verify that the marketing carrier operates it.
         ))
     return journey(segments, data[9] if len(data) > 9 else None)

@@ -47,6 +47,7 @@ def test_roundtrip_selection_does_not_add_two_roundtrip_prices(monkeypatch):
     monkeypatch.setattr(flight_search,'fetch_google',fetch)
     initial = search_flights(request(return_date='2026-10-21'))['offers'][0]
     assert initial['inbound'] is None and not initial['itinerary_complete']
+    assert initial['airline_filter_scope'] == 'marketing'
     result = select_flight(initial['offer_id'])['offers'][0]
     assert result['price'] == '350' and result['itinerary_complete']
     assert result['outbound']['segments'][0]['origin'] == 'MYJ'
@@ -69,6 +70,7 @@ def test_return_filters_are_applied_to_actual_return(monkeypatch):
     initial = search_flights(request(return_date='2026-10-21',inbound={'earliest_departure_hour':12}))
     result = select_flight(initial['offers'][0]['offer_id'])
     assert not result['offers'] and result['rejected'] == {'time_window':1}
+    assert any('does not establish that no matching itinerary exists' in w for w in result['warnings'])
 
 
 def test_provider_filters_and_passenger_counts_are_encoded():
@@ -136,6 +138,9 @@ def test_matrix_quote_never_inherits_google_price_or_claims_same_fare(monkeypatc
     assert result['same_fare_as_search_quote_verified'] is False
     assert result['lowest_fare']['price']=='300.25'
     assert result['lowest_fare']['fare_brand'] is None
+    assert result['lowest_fare']['basic_economy'] is None
+    assert result['fare_brand_verification'] == 'unavailable'
+    assert all(v == 'unknown' for v in result['benefits_eligibility'].values())
     assert result['lowest_fare']['conditions']['refunds_allowed'] is False
     assert result['lowest_known_total_with_bags'] is None
     assert result['fares'][1]['extra_vs_lowest_fare']=='99.75'
@@ -169,3 +174,14 @@ def test_unknown_matrix_restrictions_remain_unknown():
     assert fares.conditions([])['refunds_allowed'] is None
     result=fares.conditions(['Changes to this ticket will incur a penalty fee.'])
     assert result['change_penalty_applies'] is True and result['change_fee'] is None
+
+
+def test_matrix_no_fares_retains_google_quote_without_claiming_unavailability(monkeypatch):
+    offer_id = stored_oneway(monkeypatch)
+    monkeypatch.setattr(fares, 'fetch_fares', Mock(return_value={'quotes': [], 'warnings': [], 'malformed_rows': 0}))
+    result = fares.compare_fares(offer_id)
+    assert result['status'] == 'no_results'
+    assert result['no_fares_reason'] == 'no_matrix_fares_for_selected_flights'
+    assert result['search_quote']['price'] == '300'
+    assert result['fares'] == [] and result['lowest_fare'] is None
+    assert result['fare_brand_verification'] == 'unavailable'

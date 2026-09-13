@@ -114,3 +114,37 @@ def test_booking_class_filter_is_verified_after_fetch(detail,req,monkeypatch):
     # The fixture's actual class is N; a Y request must not relabel it.
     assert len(result['quotes'])==1 and result['malformed_rows']==1
     assert result['quotes'][0]['requested_booking_code'] is None
+
+
+def test_captured_matrix_zero_fares_omits_solutions(detail, req, monkeypatch):
+    empty = json.loads((Path(__file__).parent/'fixtures/matrix-no-fares.json').read_text())
+    client = Mock()
+    client.call.return_value = empty
+    monkeypatch.setattr(matrix, 'MatrixClient', lambda: client)
+    j = matrix.parse_detail(detail, req)['journeys'][0]
+    result = matrix.fetch_fares(req, j, None, [])
+    assert result['quotes'] == [] and result['malformed_rows'] == 0
+    assert 'does not invalidate the Google quote' in result['warnings'][0]
+    assert client.call.call_count == 1
+
+
+@pytest.mark.parametrize('listing', [{}, {'solutionCount': 1}, {'solutionCount': False}, {'solutions': None}])
+def test_missing_matrix_results_without_explicit_zero_still_fail(detail, req, monkeypatch, listing):
+    client = Mock()
+    client.call.return_value = {'solutionList': listing}
+    monkeypatch.setattr(matrix, 'MatrixClient', lambda: client)
+    j = matrix.parse_detail(detail, req)['journeys'][0]
+    with pytest.raises(ValueError):
+        matrix.fetch_fares(req, j, None, [])
+
+
+def test_no_default_matrix_fare_does_not_skip_requested_class(detail, req, monkeypatch):
+    empty = {'solutionList': {'solutionCount': 0}}
+    search = {'solutionList': {'solutions': [{'id': 'test'}]}, 'solutionSet': 'set', 'session': 'session'}
+    client = Mock()
+    client.call.side_effect = [empty, search, detail]
+    monkeypatch.setattr(matrix, 'MatrixClient', lambda: client)
+    j = matrix.parse_detail(detail, req)['journeys'][0]
+    result = matrix.fetch_fares(req, j, None, ['N'])
+    assert len(result['quotes']) == 1 and len(result['warnings']) == 1
+    assert result['quotes'][0]['requested_booking_code'] == 'N'
