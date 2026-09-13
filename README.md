@@ -1,27 +1,23 @@
 # cheapdates
 
-Flight calendars, detailed itineraries, airline/alliance filters, and fare comparisons. CLI + MCP server.
+Flight calendars, detailed itineraries, airline/alliance filters, and free ITA Matrix fare research. CLI + MCP server.
+
+The default workflow uses HTTP only: no Chromium, clicking, account, personal API key or subscription.
 
 Version 0.3 adds four MCP tools alongside the existing calendar: `search_flights_tool`,
 `select_flight_tool`, `compare_fares_tool`, and `airline_partners_tool`.
-See [detailed search and fare comparison](docs/flight-search.md) for examples, provider setup,
+See [detailed search and fare comparison](docs/flight-search.md) for examples, booking-class comparisons,
 and the distinction between requested filters and verified itinerary details.
 
-Why this exists: Google's price calendar (`GetCalendarGraph`) is signed per-request by BotGuard, so
-every pure-HTTP client (fli `dates`, google-flights-mcp, …) has returned empty results since mid-2026.
-`cheapdates` has two backends:
+`cheapdates` has two calendar backends:
 
-- **graph** — drives headless Chromium to the route page, opens *Price graph*, and reads the calendar the
-  page itself receives. One call ≈ 60 departure dates, one-way or round-trip. ~3 s per 60 days.
-- **sweep** — one [fast-flights](https://github.com/AWeirdDev/flights) search per date, no browser.
-  ~0.5 s per date with 4 workers; also tells you the airline.
+- **sweep** (default) — one Google flight search per date, with airline names and no browser.
+- **graph** (explicit opt-in) — headless Chromium opens Google's price graph. One response
+  covers roughly 60 dates, but provides no airline details.
 
-Sweep uses fast-flights to build the query and reads **both** Google flight-result groups with
-a local parser. Version 0.1 relied on fast-flights 3.1's parser, which skipped one group and
-could miss a cheaper offer (the regression fixture contains $858 American versus $977 LATAM).
-
-`auto` (default) tries graph when Playwright is installed; if the browser is missing or graph fails,
-it falls back to sweep and reports why. Custom `PLAYWRIGHT_BROWSERS_PATH` locations are supported.
+`auto` always selects sweep. Sweep reads both Google result groups so a cheaper offer in
+one group is not overlooked. Detailed search and return selection also use HTTP.
+Fare research uses ITA Matrix, with its quote kept separate from Google's price.
 
 **Use IATA airport codes, not city names.** For Santiago, Chile use `SCL`. For New York, choose
 the intended airport (`JFK`, `EWR`, or `LGA`); the tool does not silently pick one for you.
@@ -36,7 +32,9 @@ field is `null`; an airline from a separate search must not be attributed to tha
 ## Install
 ```
 git clone https://github.com/afgoes/cheapdates.git && cd cheapdates && uv sync   # see INSTALL.md
-uv run python -m playwright install chromium       # for the graph backend
+
+# Optional, only if you explicitly use --backend graph:
+uv run python -m playwright install chromium
 ```
 
 ## CLI
@@ -65,7 +63,7 @@ Example arguments for a seven-night trip with airline names:
   "include_airlines": true
 }
 ```
-For long ranges, use graph to shortlist dates, then request airline searches for that smaller range.
+For long ranges, narrow the date window to reduce HTTP requests. Graph is an optional browser alternative.
 Airline names are returned when Google supplies them; they do not establish flight numbers,
 nonstop service, or all return-leg details. Use `nonstop=true` to request nonstop results.
 

@@ -11,23 +11,16 @@ Cheapest: Tue Oct 13 → Tue Oct 20, $576. Runners-up: Sun Oct 18 ($592), Thu Oc
 Mid-month is the floor; the weekend of Oct 16–17 jumps to $750+.
 ```
 
-## Why this exists
+## Free and browserless by default
 
-Google never shipped a Flights API. The open-source libraries that reverse-engineered the
-price calendar (`fli`, `google-flights-mcp`, …) all stopped returning results in mid-2026:
-Google now signs every calendar request with a per-request BotGuard token, so plain HTTP
-replays get an empty response.
+`auto` uses `sweep`: one Google Flights HTTP search per date, including airline names.
+The detailed search/return-selection tools use Google HTTP requests; fare research uses
+ITA Matrix for exact flights, booking classes, fare bases, taxes and restriction notes.
+No account, personal API key, subscription, or browser is needed for that workflow.
+See [flight search and fare research](docs/flight-search.md).
 
-`cheapdates` gets around that with two backends:
-
-| backend | how it works | speed | notes |
-|---|---|---|---|
-| **graph** (default) | Headless Chromium loads the route page, opens *Price graph*, and we read the calendar the page itself receives | ~3 s per 60 days | One-way **and** round-trip (fixed trip length), nonstop filter, cabin class |
-| **sweep** (fallback) | One [fast-flights](https://github.com/AWeirdDev/flights) search per date, no browser | ~0.5 s per date | Also reports the airline |
-
-`auto` tries graph when Playwright is installed and falls back to sweep if the browser is missing
-or graph fails. Both backends can fail; errors are reported separately from searches with no fares.
-Set `include_airlines=true` to use sweep directly when airline names are needed.
+The legacy `graph` backend is an explicit optional browser workflow. It can cover many
+dates with one calendar response but does not include airline details.
 
 ## Requirements
 
@@ -41,14 +34,13 @@ Set `include_airlines=true` to use sweep directly when airline names are needed.
 git clone https://github.com/afgoes/cheapdates.git
 cd cheapdates
 uv sync                                  # creates .venv with all deps
-uv run python -m playwright install chromium   # one-time browser download
 uv run pytest -q                         # offline regression tests
 ```
 
-Quick smoke test (talks to Google, ~5 s):
+Quick smoke test (talks to Google):
 
 ```bash
-uv run cheapdates JFK LHR 2026-10-01 2026-10-31
+uv run cheapdates LAX AUS 2026-10-14 2026-10-15
 ```
 
 You should see one line per day with a price, the cheapest dates marked `◀`, and a
@@ -125,15 +117,13 @@ Install the CLI globally with `uv tool install /path/to/cheapdates`.
 
 ## Tips
 
-- Long ranges are fine — 90 days is two graph calls (~7 s).
+- Sweep makes one search per day; narrow long ranges when possible.
 - The graph backend reports the cheapest fare Google puts on its calendar, which may be a
   1-stop itinerary. `--nonstop` filters stops; `--include-airlines` requests airline names.
   An airline name alone does not establish nonstop service or a flight number.
-- Headless Chromium ran fine against Google from a normal home connection with no stealth
-  tricks. If you're behind a datacenter IP or VPN you may get CAPTCHAs; the sweep backend is
-  less sensitive to that.
-- Be a good citizen: this hits Google's public site. A few dozen queries a day is nothing;
-  don't put it in a tight loop.
+- Chromium is only needed for explicit graph requests. Install it with
+  `uv run python -m playwright install chromium` if you choose that backend.
+- Avoid tight polling loops; Google and Matrix can reject or throttle searches.
 
 ## Troubleshooting
 
@@ -148,7 +138,7 @@ Install the CLI globally with `uv tool install /path/to/cheapdates`.
 | Claude Code shows `✘ Failed to connect` | Path after `--directory` must be absolute; run the `uv run … cheapdates-mcp` command by hand to see the error |
 
 To update an existing checkout, run `git pull --ff-only`, `uv sync --locked`, and `uv run pytest -q`
-there. Restart the MCP client so it reloads the tool schema. If Playwright was upgraded, reinstall
+there. Restart the MCP client so it reloads the tool schema. If you use graph and Playwright was upgraded, reinstall
 Chromium with `uv run python -m playwright install chromium`. Custom browser locations configured
 through `PLAYWRIGHT_BROWSERS_PATH` are honored.
 

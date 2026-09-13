@@ -66,7 +66,7 @@ class SearchRequest(Model):
     currency: str = "USD"
     seat: Seat = "economy"
     passengers: Passengers = Field(default_factory=Passengers)
-    provider: Literal["google", "serpapi"] = "google"
+    provider: Literal["google"] = "google"
     include_airlines: list[str] = Field(default_factory=list, max_length=20)
     exclude_airlines: list[str] = Field(default_factory=list, max_length=20)
     alliance: Alliance | None = None
@@ -118,8 +118,6 @@ class SearchRequest(Model):
             raise ValueError("carry_on_bags cannot exceed passengers with seats")
         if self.exclude_basic_economy:
             raise ValueError("Global basic-economy exclusion cannot be verified. Use compare_fares_tool to inspect fare types for selected flights.")
-        if self.provider == "serpapi" and (self.checked_bags or self.hide_separate_and_self_transfer):
-            raise ValueError("SerpApi cannot enforce checked_bags or hide_separate_and_self_transfer in this adapter; inspect fare options instead")
         return self
 
 

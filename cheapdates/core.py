@@ -69,16 +69,6 @@ class Result:
         }
 
 
-def _graph_available() -> bool:
-    # Let Playwright resolve platform-specific and custom browser locations.
-    # Launch errors still fall back to sweep in the dispatcher.
-    try:
-        from playwright.sync_api import sync_playwright  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
 def _airport(value: str, field_name: str) -> str:
     code = value.strip().upper()
     if not re.fullmatch(r"[A-Z]{3}", code):
@@ -109,7 +99,7 @@ def cheapest_dates(
     trip_length=None → one-way. trip_length=N → round-trip returning N days later.
     backend: "graph" uses Google's own price calendar through a headless browser
     (one request ≈ 60 days); "sweep" runs one fast-flights search per date;
-    "auto" tries graph when Playwright is installed, falling back to sweep.
+    "auto" uses browserless sweep. Graph is an explicit opt-in.
     include_airlines=True uses sweep so prices and airlines describe the same offer.
     Airports must be IATA codes; city names are rejected before any network requests.
     """
@@ -145,7 +135,7 @@ def cheapest_dates(
             selection_warnings.append("Using sweep to honor include_airlines or max_stops; graph provides calendar prices only and supports only nonstop or any stops.")
         backend = "sweep"
     if backend == "auto":
-        backend = "graph" if _graph_available() else "sweep"
+        backend = "sweep"
     if backend == "graph":
         from .graph import graph_cheapest_dates
         try:

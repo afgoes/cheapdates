@@ -83,3 +83,41 @@ server.main()
                 assert json.loads(result.content[0].text)['airlines'][0]['earning_eligibility'] == 'unknown'
 
     asyncio.run(check())
+
+
+def test_browserless_google_matrix_workflow_over_stdio():
+    source = '''
+import builtins,json
+from pathlib import Path
+original=builtins.__import__
+def no_browser(name,*a,**kw):
+    if name.startswith('playwright'): raise AssertionError('Browser import forbidden')
+    return original(name,*a,**kw)
+builtins.__import__=no_browser
+from cheapdates import mcp_server as server,flight_search,fares
+from cheapdates.matrix import parse_detail
+from cheapdates.search_models import SearchRequest
+req=SearchRequest(origin='LAX',destination='AUS',departure_date='2026-10-14')
+quote=parse_detail(json.loads(Path('tests/fixtures/matrix-detail.json').read_text()),req)
+quote['requested_booking_code']=None
+flight_search.fetch_google=lambda request: ([{'price':'159','journey':quote['journeys'][0]}],0)
+fares.fetch_fares=lambda *a: {'quotes':[quote],'warnings':[],'malformed_rows':0}
+server.main()
+'''
+    async def check():
+        params=StdioServerParameters(command=sys.executable,args=['-c',source])
+        async with stdio_client(params) as (read,write):
+            async with ClientSession(read,write) as session:
+                await session.initialize()
+                result=await session.call_tool('search_flights_tool',{'request':dict(origin='LAX',destination='AUS',departure_date='2026-10-14')})
+                assert not result.model_dump(by_alias=True)['isError']
+                offer=json.loads(result.content[0].text)['offers'][0]
+                result=await session.call_tool('select_flight_tool',{'offer_id':offer['offer_id']})
+                assert not result.model_dump(by_alias=True)['isError']
+                result=await session.call_tool('compare_fares_tool',{'offer_id':offer['offer_id']})
+                assert not result.model_dump(by_alias=True)['isError']
+                data=json.loads(result.content[0].text)
+                assert data['search_quote']['price']=='159' and data['lowest_fare']['price']=='158.40'
+                assert data['lowest_fare']['fare_components'][0]['fare_basis']=='KAG5AKBN'
+                assert data['same_fare_as_search_quote_verified'] is False
+    asyncio.run(check())

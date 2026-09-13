@@ -51,20 +51,8 @@ def parse_google_details(html):
         try:
             if not row[1] or not row[1][0] or row[1][0][1] is None:
                 continue
-            segments = []
-            for s in row[0][2]:
-                carrier = s[22] if len(s) > 22 and isinstance(s[22], list) else []
-                code = carrier[0] if len(carrier) > 0 else None
-                number = carrier[1] if len(carrier) > 1 else None
-                segments.append(Segment(
-                    origin=s[3], destination=s[6],
-                    departure_local=local_time(s[20], s[8]), arrival_local=local_time(s[21], s[10]),
-                    duration_minutes=s[11], aircraft=s[17],
-                    marketing_carrier=code, flight_number=f"{code}{number}" if code and number else None,
-                    airline_name=carrier[3] if len(carrier) > 3 else None,
-                    # Operating carrier, cabin and technical stops have no verified indexes.
-                ))
-            offers.append({"price": money(row[1][0][1]), "journey": journey(segments)})
+            offers.append({"price": money(row[1][0][1]), "journey": parse_google_journey(row[0]),
+                           "selection_token": row[1][1] if len(row[1]) > 1 and isinstance(row[1][1], str) else None})
         except (ValueError, IndexError, TypeError, KeyError):
             skipped += 1
     if skipped and not offers:
@@ -72,42 +60,19 @@ def parse_google_details(html):
     return offers, skipped
 
 
-def parse_serp_journey(row):
+
+def parse_google_journey(data):
     segments = []
-    for s in row["flights"]:
-        number = s.get("flight_number")
-        number = re.sub(r"\s+", "", number).upper() if isinstance(number, str) else None
-        match = re.fullmatch(r"([A-Z0-9]{2})\d{1,4}[A-Z]?", number or "")
+    for s in data[2]:
+        carrier = s[22] if len(s) > 22 and isinstance(s[22], list) else []
+        code = carrier[0] if len(carrier) > 0 else None
+        number = carrier[1] if len(carrier) > 1 else None
         segments.append(Segment(
-            origin=s["departure_airport"]["id"], destination=s["arrival_airport"]["id"],
-            departure_local=dt.datetime.fromisoformat(s["departure_airport"]["time"]),
-            arrival_local=dt.datetime.fromisoformat(s["arrival_airport"]["time"]),
-            duration_minutes=s["duration"], marketing_carrier=match[1] if match else None,
-            airline_name=s.get("airline"), flight_number=number,
-            aircraft=s.get("airplane"), cabin=s.get("travel_class"),
-            # Do not infer an operator or zero technical stops from an airline display name.
+            origin=s[3], destination=s[6],
+            departure_local=local_time(s[20], s[8]), arrival_local=local_time(s[21], s[10]),
+            duration_minutes=s[11], aircraft=s[17],
+            marketing_carrier=code, flight_number=f"{code}{number}" if code and number else None,
+            airline_name=carrier[3] if len(carrier) > 3 else None,
+            # Operating carrier, cabin and technical stops have no verified indexes.
         ))
-    return journey(segments, row.get("total_duration"))
-
-
-def parse_serp_details(payload):
-    keys = [k for k in ("best_flights", "other_flights") if k in payload]
-    if not keys:
-        raise ValueError("Provider returned no recognizable flight result groups")
-    rows = []
-    for key in keys:
-        if not isinstance(payload[key], list):
-            raise ValueError("Malformed provider result group")
-        rows.extend(payload[key])
-    offers, skipped = [], 0
-    for row in rows:
-        if isinstance(row, dict) and row.get("price") is None:
-            continue
-        try:
-            offers.append({"price": money(row["price"]), "journey": parse_serp_journey(row),
-                           "departure_token": row.get("departure_token"), "booking_token": row.get("booking_token")})
-        except (ValueError, KeyError, TypeError, IndexError):
-            skipped += 1
-    if skipped and not offers:
-        raise ValueError("All priced flight rows had malformed details")
-    return offers, skipped
+    return journey(segments, data[9] if len(data) > 9 else None)

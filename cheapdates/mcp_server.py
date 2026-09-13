@@ -43,7 +43,7 @@ async def cheapest_dates_tool(
     Returns {status, cheapest, days:[{depart, ret, price, airlines, status, error}], backend, warnings}.
     The 'graph' backend reads Google Flights' own price calendar (fast, ~60 days per call);
     its airlines are always null. 'sweep' searches each date individually.
-    'auto' tries graph and falls back to sweep. Partial failures have status=partial
+    'auto' uses browserless sweep; graph requires explicit opt-in. Partial failures have status=partial
     and per-day errors; no_results means the search completed without priced offers.
     """
     res = await asyncio.to_thread(
@@ -62,8 +62,8 @@ async def search_flights_tool(request: SearchRequest) -> dict:
 
     origin/destination are IATA codes. Use outbound.max_stops=0 and inbound.max_stops=0
     for nonstop both ways. Times are inclusive local-hour ranges (7..18 includes 18:59).
-    google is keyless and shows outbound options with round-trip shopping prices.
-    serpapi requires SERPAPI_API_KEY and supports select_flight_tool for returns.
+    Free browserless Google search shows outbound options with round-trip prices.
+    Use select_flight_tool to retrieve return options for the chosen outbound.
     Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
     Prices cover the requested passenger party. References expire after 15 minutes
     and are valid only in this MCP process. Search results do not reserve flights.
@@ -73,25 +73,25 @@ async def search_flights_tool(request: SearchRequest) -> dict:
 
 @mcp.tool()
 async def select_flight_tool(offer_id: str) -> dict:
-    """Select a search offer. For a SerpApi round trip, retrieve return alternatives.
+    """Select a search offer and retrieve return alternatives without a browser.
 
     Returned offers contain the chosen outbound plus a return and a combined price.
-    Use one of those offer IDs with compare_fares_tool. A keyless Google round-trip
-    quote cannot identify a return; repeat search with provider=serpapi first.
+    Use one of those offer IDs with compare_fares_tool for free Matrix fare research.
     """
     return await asyncio.to_thread(select_flight, offer_id)
 
 
 @mcp.tool()
-async def compare_fares_tool(offer_id: str) -> dict:
-    """Retrieve fare brands, sellers, baggage text and conditions for selected flights.
+async def compare_fares_tool(offer_id: str, booking_codes: list[str] | None = None) -> dict:
+    """Research free ITA Matrix fares for selected flights, without Chromium or API-key setup.
 
-    Requires SERPAPI_API_KEY. Round trips require a selected return; one-way Google
-    offers can be compared directly when flight numbers are available. Prices and
-    conditions are fetched together after verifying the exact flights. Missing
-    terms/fees remain unknown. Separate-ticket options are excluded. No booking is made.
+    Round trips require a selected return. Returns booking classes, fare basis,
+    taxes and ticket restriction notes. Optional booking_codes (up to four uppercase
+    letters) requests additional airline-specific booking classes on all segments.
+    Matrix prices and conditions are separate from the Google quote, even when the
+    flights match. Unknown baggage charges and fare brands stay unknown. No booking.
     """
-    return await asyncio.to_thread(compare_fares, offer_id)
+    return await asyncio.to_thread(compare_fares, offer_id, booking_codes)
 
 
 @mcp.tool()

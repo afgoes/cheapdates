@@ -9,7 +9,7 @@ import uuid
 from collections import OrderedDict
 from decimal import Decimal
 
-from .providers import fetch_google, fetch_serp
+from .providers import fetch_google
 from .search_models import Journey, LegFilters, SearchRequest, money
 
 
@@ -128,8 +128,6 @@ def _results(request, rows, skipped, selected=None):
         warnings.append(f"Skipped {skipped} malformed priced rows; results may be incomplete")
     if request.return_date and not selected:
         warnings.append("Prices are round-trip shopping quotes; the return flight has not been selected")
-        if request.provider == "google":
-            warnings.append("Use provider=serpapi to select a return flight and compare complete round-trip fare options")
     if any(unknown for _, unknown in valid):
         warnings.append("Some requested properties are provider-reported only; see each offer's unverified_properties")
     if rejected:
@@ -153,7 +151,7 @@ def _results(request, rows, skipped, selected=None):
                      unverified_properties=unverified, fare_brand=None, baggage=None,
                      reference_expires_in_seconds=OFFERS.ttl)
         entry = dict(request=request, outbound=outbound, inbound=inbound, offer=offer,
-                     departure_token=row.get("departure_token"), booking_token=row.get("booking_token"),
+                     selection_token=row.get("selection_token"),
                      unverified_properties=unverified)
         offer["offer_id"] = OFFERS.put(entry)
         output.append(offer)
@@ -167,7 +165,7 @@ def _results(request, rows, skipped, selected=None):
 
 def search_flights(request: SearchRequest | dict):
     request = SearchRequest.model_validate(request)
-    rows, skipped = fetch_google(request) if request.provider == "google" else fetch_serp(request)
+    rows, skipped = fetch_google(request)
     return _results(request, rows, skipped)
 
 
@@ -175,9 +173,5 @@ def select_flight(offer_id: str):
     entry = OFFERS.get(offer_id)
     if entry["offer"]["itinerary_complete"]:
         return {"status": "ok", "offer": {**entry["offer"], "offer_id": offer_id}, "next_tool": "compare_fares_tool"}
-    if entry["request"].provider != "serpapi":
-        raise ValueError("Return selection needs provider=serpapi. Repeat the search with that provider; no extra request was made")
-    if not entry["departure_token"]:
-        raise ValueError("Provider supplied no return-selection token; repeat the search")
-    rows, skipped = fetch_serp(entry["request"], entry["departure_token"])
+    rows, skipped = fetch_google(entry["request"], entry["outbound"])
     return _results(entry["request"], rows, skipped, selected=entry)

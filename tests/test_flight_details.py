@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from cheapdates.flight_details import local_time, parse_google_details, parse_serp_details
+from cheapdates.flight_details import local_time, parse_google_details
 from cheapdates.search_models import SearchRequest, Segment, journey, money
 from cheapdates.flight_search import check_journey
 
@@ -44,13 +44,6 @@ def test_invalid_prices_fail(value):
 
 def test_decimal_prices_do_not_truncate_cents():
     assert money(123.45) == '123.45'
-
-
-def test_serp_empty_missing_and_malformed_results_are_distinct():
-    assert parse_serp_details({'best_flights': []}) == ([], 0)
-    for payload in [{}, {'best_flights': None}, {'best_flights': [{'price': 42}]}]:
-        with pytest.raises(ValueError):
-            parse_serp_details(payload)
 
 
 def segment(**changes):

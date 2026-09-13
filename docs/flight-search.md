@@ -1,169 +1,138 @@
-# Flight search and fare comparison
+# Free flight search and fare research
 
-Use the existing calendar to find dates, then `search_flights_tool` to inspect flight alternatives.
-Version 0.3 preserves the existing CLI and `cheapest_dates_tool` arguments and results.
-New prices are decimal strings and cover the requested passenger party.
+Version 0.3 combines Google Flights search with ITA Matrix fare research. The default
+workflow uses HTTP only: no Chromium, clicking, account, personal API key, subscription,
+or paid fallback. The older `graph` calendar backend remains an explicit browser option;
+`auto` now uses `sweep` even when Playwright is installed.
 
-## Search
+## Search and select
 
-`search_flights_tool` takes a nested `request` object:
+Use `cheapest_dates_tool` to find dates, then pass a nested `request` to
+`search_flights_tool`:
 
 ```json
 {
   "request": {
-    "origin": "MYJ",
-    "destination": "TPE",
+    "origin": "LAX",
+    "destination": "AUS",
     "departure_date": "2026-10-14",
     "return_date": "2026-10-21",
-    "provider": "google",
-    "seat": "economy",
-    "currency": "USD",
-    "include_airlines": ["BR"],
+    "include_airlines": ["UA"],
     "outbound": {"max_stops": 0, "earliest_departure_hour": 7},
     "inbound": {"max_stops": 0},
+    "passengers": {"adults": 1},
+    "currency": "USD",
     "limit": 5
   }
 }
 ```
 
-Dates and routes above are examples, not current fare offers. Omit `return_date` for one-way travel.
-Use explicit airport codes; city names and automatic nearby-airport expansion are not supported.
+These are example dates and routes. Use explicit IATA airport codes. Omit `return_date`
+for one-way travel. A city name does not silently become one airport.
 
-Search options:
+For a round trip:
 
-| Field | Meaning |
+1. Choose an outbound `offer_id` from the search.
+2. Call `select_flight_tool({"offer_id":"..."})` to retrieve return alternatives.
+3. Choose an ID from the complete outbound/return offers.
+4. Call `compare_fares_tool({"offer_id":"..."})` to research its Matrix fares.
+
+For a one-way search, its offer ID can go directly to `compare_fares_tool`.
+Google selection uses encoded flight numbers, airports and dates through HTTP. Initial
+round-trip search prices do not identify a return: `itinerary_complete=false`. Return
+selection provides a combined party quote; outbound and return prices are never added.
+
+| Search option | Meaning |
 |---|---|
-| `provider` | `google` (default, keyless) or `serpapi` (API key required) |
-| `include_airlines` / `exclude_airlines` | Two-character IATA codes; choose one list |
-| `alliance` | `ONEWORLD`, `SKYTEAM`, or `STAR_ALLIANCE`; use instead of airline lists |
-| `airline_scope` | `marketing` by default; `operating` requires operator data and excludes candidates where it is unknown |
-| `outbound` / `inbound` | Separate filter objects for each direction |
-| `passengers` | `adults` (default 1), `children`, `infants_in_seat`, `infants_on_lap`; maximum 9 total |
-| `carry_on_bags` / `checked_bags` | Requested bag counts; an encoded filter does not establish the returned allowance or fee |
-| `hide_separate_and_self_transfer` | Google query preference; returned ticket protection is unverified |
-| `max_price` | Maximum party price in the requested currency |
-| `sort_by` | `price`, `duration`, or `departure`; default `price` |
-| `limit` | 1–20 alternatives; default 5 |
+| `provider` | Only `google`; optional |
+| `include_airlines` / `exclude_airlines` | IATA airline codes; choose one list |
+| `alliance` | `ONEWORLD`, `SKYTEAM`, `STAR_ALLIANCE`; use instead of airline lists |
+| `airline_scope` | `marketing` by default; `operating` rejects candidates without verified operator codes |
+| `seat` | `economy`, `premium_economy`, `business`, `first` |
+| `passengers` | Adults, children, infants in seats/on laps; maximum nine total |
+| `outbound` / `inbound` | Independent filters for each direction |
+| `carry_on_bags` / `checked_bags` | Google preferences; returned allowance and fees are not verified |
+| `hide_separate_and_self_transfer` | Google preference; ticket protection remains unverified |
+| `max_price` | Maximum Google party price in the requested currency |
+| `sort_by` | `price`, `duration`, `departure` |
+| `limit` | 1–20 offers, default 5 |
 
-Each direction accepts `max_stops` (0, 1, 2, or null), `earliest_departure_hour`,
+Each direction supports `max_stops` (0–2 or null), `earliest_departure_hour`,
 `latest_departure_hour`, `earliest_arrival_hour`, `latest_arrival_hour`,
 `max_duration_minutes`, `min_layover_minutes`, `max_layover_minutes`,
-`avoid_overnight_layovers`, and `avoid_airport_changes`.
-Hour bounds are inclusive local hours: an upper bound of 18 includes 18:59.
-Ranges cannot wrap midnight. Airport-change layover durations remain unknown because
-the two airports' time zones are not established by these responses.
+`avoid_overnight_layovers`, and `avoid_airport_changes`. Hour bounds include the full
+hour (18 means through 18:59); ranges cannot wrap midnight.
 
-The Google query builder sends supported preferences upstream; local checks also reject
-conflicting dates, routes, airlines, time windows, duration and connection details.
-Google airline exclusions are applied locally to available candidates. Results are not an
-exhaustive search of inventory, especially after local filtering.
-[Upstream query filters](https://github.com/AWeirdDev/flights#search-filters).
+Local checks exclude candidates with conflicting routes, dates, airlines, times or
+connections. Airline exclusions operate on available Google candidates and can reduce
+coverage. Alliance membership is provider-reported. Missing operator codes cause
+operating-airline hard filters to return no matching results.
 
-## What the result establishes
+`connections` counts segments minus one. `nonstop_verified` remains null when technical
+stops are unknown. A nonstop preference alone is not evidence of zero technical stops.
+The price comparison reports the cheapest candidate and the premium for no connections,
+before applying the output limit. Initial round-trip comparisons cover outbound options.
 
-Each offer has `offer_id`, provider, retrieval time, party price, explicit selection stage,
-outbound details, optional inbound details, and `unverified_properties`.
-Segments include flight numbers, local departure/arrival times, duration and aircraft when supplied.
-The result's `comparison` summarizes the cheapest matching candidate and the premium for an
-alternative without connections, before truncating the displayed offers. For unselected round trips,
-that comparison concerns outbound options with round-trip shopping prices; it does not certify the return.
+## Matrix fares and booking classes
 
-The keyless provider parses outbound shopping options. A round-trip price from that stage
-does not identify a selected return flight: `itinerary_complete=false` and `inbound=null`.
-Use SerpApi to complete return selection. A one-way itinerary is complete after search,
-but its price is still a shopping quote, not a reservation.
+`compare_fares_tool` looks up the exact selected flight sequence in Matrix, checks each
+segment's flight number, airports and date, and rechecks timing and airline constraints.
+Returned passenger counts/categories and currency must match. Schedule changes are
+reported. Separate-ticket itineraries are excluded.
 
-`connections` counts plane segments minus one. `nonstop_verified` is false when connections
-or known technical stops exist, true only with evidence of zero intermediate stops, and null
-when technical-stop data is missing. Neither current adapter infers zero technical stops from
-a missing field. A nonstop request can consequently have `technical_stops` in its
-`unverified_properties` even when its returned route has one segment.
-
-Operating-carrier codes, fare brands, and baggage allowances remain null when unavailable.
-Both adapters currently lack verified operator-code parsing, so an operator-based hard filter
-can return no matching results. Marketing-carrier filters use flight numbers.
-Alliance membership is provider-reported; it does not establish loyalty eligibility.
-
-Statuses are `ok`, `partial`, `no_results`, or `no_matching_results`. `partial` reports skipped
-malformed rows. Transport errors, unrecognizable responses, invalid requests, and entirely malformed
-priced rows raise MCP tool errors. Missing optional data does not silently become a known value.
-
-## Return selection and fare types
-
-Set `SERPAPI_API_KEY` in the environment used to launch the MCP server, then restart the client.
-Do not put the key in tool arguments, source files, or committed configuration.
-No key is needed for the existing calendar or default detailed search. The paid provider is never
-selected automatically, and each selection/comparison performs one provider request with a 30-second
-timeout. Check the provider's account limits before enabling it.
-
-1. Search with `provider="serpapi"`.
-2. Call `select_flight_tool({"offer_id":"..."})` with the desired outbound option.
-3. Choose an offer from the returned complete outbound/return combinations.
-4. Call `compare_fares_tool({"offer_id":"..."})` using that complete offer's ID.
-
-For one-way searches, call `compare_fares_tool` directly, including for keyless Google results
-with flight numbers. The comparison uses SerpApi to retrieve fresh options for those exact flights;
-it keeps the earlier provider's quote separately instead of attaching new conditions to that price.
-
-The adapter pins every segment by flight number, airport pair and date, verifies the returned
-selection, and rechecks routing/timing/carrier constraints. Schedule changes are reported.
-Fare options contain seller, the airline's fare-brand name, price, original condition text,
-baggage text, and the difference from the cheapest returned fare. Missing terms remain unknown.
-Known “No refunds” and change restrictions are normalized conservatively. A “Flex” label does
-not imply a refundable fare; a zero change penalty does not waive a fare difference.
-
-`total_with_requested_bags` remains null unless inclusion and scope can be established.
-The initial implementation recognizes explicitly free requested bags for a single-adult one-way
-trip; it does not turn fee ranges or ambiguous per-person/per-direction fees into exact totals.
-Separate-ticket/uncombined options are excluded rather than compared with complete ticket prices.
-No booking or booking-link POST is performed.
-
-Global `exclude_basic_economy=true` is rejected with guidance to compare fare options:
-SerpApi documents that filter only for domestic US economy searches, and this adapter does not
-silently apply it to international routes. SerpApi also rejects `checked_bags` and
-`hide_separate_and_self_transfer` search requests because this adapter cannot enforce them.
-[Search and selection parameters](https://serpapi.com/google-flights-api),
-[booking-option fields](https://serpapi.com/google-flights-booking-options).
-
-Offer references stay in memory for 15 minutes, with a maximum of 256 stored entries. They disappear
-when the MCP process restarts and are not valid in a different process. A reference's lifetime is
-not a guarantee of fare availability. API keys and full provider responses are not stored in the cache.
-
-## Partner airlines
+To explore another booking class, optionally pass up to four uppercase letters:
 
 ```json
-{"program":"skymiles","airline":"LA"}
+{"offer_id":"...", "booking_codes":["Y"]}
 ```
 
-Pass this to `airline_partners_tool`. Supported programs are `aadvantage`, `skymiles`, and
-`latam_pass`. Omit `airline` to list the curated entries. Each result links an official source and
-shows its review date. After 90 days, the snapshot reports `refresh_required` and relationships
-become unknown until the bundled source data is reviewed.
+The tool researches the default Matrix fare and each requested class separately. A
+class applies to all segments in that extra search. Letters are airline-specific;
+`Y` is an example, not a universal fare brand or refundability rule. No matching class
+produces a warning, not an invented fare. A default query may return only one fare.
 
-This directory is deliberately a subset. An unlisted airline is unknown, not a confirmed
-non-partner. Program partnerships do not establish booking-class eligibility, lounge access,
-mileage earning, or award inventory. Those fields remain unknown; automated earning calculations
-and award search are later work. Source URLs and reviewed relationships are maintained in
-`cheapdates/partners.py`.
+Each fare includes its decimal price, fare basis codes, segment booking information,
+tax components, ticket restriction notes, and premium over the cheapest Matrix result.
+`fare_brand` and seller remain null: a booking class or fare basis does not establish a
+consumer label such as Basic, Standard or Flex. Known negative restriction notes are
+normalized conservatively. Notes are summaries, not complete fare-rule text.
 
-## Python and validation
+**Google and Matrix quotes remain separate.** `search_quote` preserves Google's original
+price; Matrix's price and conditions belong together. Matching flights does not establish
+that both providers priced the same fare or seller, even when amounts happen to match.
+`same_fare_as_search_quote_verified` is always false. Matrix may lack an airline or fare
+that Google shows. Matrix cannot issue tickets; the output includes a Google itinerary
+link for the user to continue manually.
 
-```python
-from cheapdates import SearchRequest, search_flights, select_flight, compare_fares
+Matrix does not establish baggage allowances here. `total_with_requested_bags` is null
+when bags were requested. No guessed fees, mileage earning or refund benefits are added.
+Global `exclude_basic_economy=true` is rejected because it cannot be verified across routes.
 
-result = search_flights(SearchRequest(
-    origin="MYJ", destination="TPE", departure_date="2026-10-14",
-    outbound={"max_stops": 0}, include_airlines=["BR"],
-))
-print(result)
-```
+The adapter discovers Matrix's public application identifier from its own website and
+Google-hosted JavaScript. It is cached in memory for one day. No user key is requested or
+stored, and there is no paid fallback. Search and detail calls have 55-second timeouts
+and at most three attempts for transient failures. Fare research is slower than Google
+search: each class requires a search plus detail lookups. Responses can change or be
+rejected because these are undocumented interfaces.
 
-Run `uv sync --locked` and `uv run pytest -q`. Tests cover a sanitized captured Google response,
-synthetic managed-provider responses, transport failures, filter preservation, return selection,
-fare matching, unknown conditions, decimal prices, cache expiry and real MCP stdio exchanges.
-They do not establish current supplier inventory, paid-account access, or fare availability.
+Protocol references: [Matrix HTTP client](https://github.com/YogevKr/itamx),
+[Google's Matrix routing guide](https://support.google.com/faqs/answer/2736497),
+[fast-flights query builder](https://github.com/AWeirdDev/flights).
 
-No paid-provider production validation is claimed by the fixture tests. A live account smoke test
-should search a representative route, select a return, and compare fares before relying on the
-integration for a particular airline. Airport resolution, additional provider adapters, and
-program-specific earning calculations remain separate roadmap items.
+## References, errors and partner airlines
+
+Offer IDs stay in memory for 15 minutes, with at most 256 entries. They disappear on MCP
+restart; expiry does not promise fare availability. Google selection tokens stay in memory.
+Transport and parsing failures raise MCP errors. `no_results` means a completed search
+found no fares; `partial` signals malformed or excluded fare details.
+
+`airline_partners_tool({"program":"skymiles","airline":"LA"})` looks up curated official
+sources. Programs: `aadvantage`, `skymiles`, `latam_pass`. Omit `airline` to list entries.
+Unlisted relationships are unknown. After 90 days the snapshot becomes `refresh_required`.
+Partnership does not establish booking-class earning eligibility or award availability.
+
+## Validation
+
+Run `uv sync --locked` and `uv run pytest -q`. Tests use sanitized Google/Matrix captures,
+synthetic failures, exact-flight/currency/passenger checks, reference expiry and real MCP
+stdio exchanges. Live checks are separate; they do not guarantee future inventory or prices.
