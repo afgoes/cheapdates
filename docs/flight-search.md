@@ -118,7 +118,17 @@ link for the user to continue manually.
 
 Matrix does not establish baggage allowances here. `total_with_requested_bags` is null
 when bags were requested. No guessed fees, mileage earning or refund benefits are added.
-Global `exclude_basic_economy=true` is rejected because it cannot be verified across routes.
+The unsupported `exclude_basic_economy` search argument is no longer advertised in
+the MCP input schema or echoed in responses. Existing clients may still send `false`.
+Sending `true` fails before any network call and explicitly explains that retrying or
+calling Matrix cannot verify Basic versus Main. It is never silently ignored.
+
+For a traveler requiring nonstop flights on an airline or its partners, apply
+`max_stops=0` in both directions and retain acceptable partner airlines. Do not replace
+that requirement with a same-airline operator restriction. A journey through a hub has
+a connection regardless of aircraft type or whether both segments have one airline's code.
+Ask which benefits must apply, and the relevant loyalty status, card or certificate;
+avoiding a Basic fare alone does not establish eligibility for all partner benefits.
 
 The adapter discovers Matrix's public application identifier from its own website and
 Google-hosted JavaScript. It is cached in memory for one day. No user key is requested or

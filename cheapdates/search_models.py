@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from .core import Seat, _airport
 
@@ -75,7 +76,9 @@ class SearchRequest(Model):
     inbound: LegFilters = Field(default_factory=LegFilters)
     carry_on_bags: Count = 0
     checked_bags: Count = 0
-    exclude_basic_economy: bool = False
+    # Retain compatibility with existing false-valued clients without advertising
+    # a filter this provider cannot verify or silently dropping a true request.
+    exclude_basic_economy: SkipJsonSchema[bool] = Field(default=False, exclude=True)
     hide_separate_and_self_transfer: bool = False
     max_price: Annotated[int, Field(strict=True, gt=0)] | None = None
     limit: Annotated[int, Field(strict=True, ge=1, le=20)] = 5
@@ -117,7 +120,7 @@ class SearchRequest(Model):
         if self.carry_on_bags > self.passengers.adults + self.passengers.children + self.passengers.infants_in_seat:
             raise ValueError("carry_on_bags cannot exceed passengers with seats")
         if self.exclude_basic_economy:
-            raise ValueError("Global basic-economy exclusion cannot be verified. Use compare_fares_tool to inspect fare types for selected flights.")
+            raise ValueError("exclude_basic_economy is unsupported; no search was run. Retrying cannot enable it, and compare_fares_tool does not verify Basic versus Main. Confirm the seller's exact fare brand and the rules for your specific benefits.")
         return self
 
 

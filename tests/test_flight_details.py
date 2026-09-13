@@ -104,3 +104,12 @@ def test_connections_across_midnight_and_airport_changes():
 def test_invalid_search_inputs_fail_before_transport(fields):
     with pytest.raises(ValueError):
         SearchRequest.model_validate(dict(origin='MYJ',destination='TPE',departure_date='2026-10-14') | fields)
+
+
+def test_unsupported_basic_filter_is_hidden_but_never_silently_ignored():
+    assert 'exclude_basic_economy' not in SearchRequest.model_json_schema()['properties']
+    req = SearchRequest(origin='JFK', destination='SCL', departure_date='2026-09-23', exclude_basic_economy=False)
+    assert 'exclude_basic_economy' not in req.model_dump()
+    with pytest.raises(ValueError, match='Retrying cannot enable it') as error:
+        SearchRequest(origin='JFK', destination='SCL', departure_date='2026-09-23', exclude_basic_economy=True)
+    assert 'compare_fares_tool does not verify Basic versus Main' in str(error.value)

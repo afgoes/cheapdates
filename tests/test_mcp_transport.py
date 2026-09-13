@@ -67,6 +67,8 @@ server.main()
                 await session.initialize()
                 tools = {t.name: t for t in (await session.list_tools()).tools}
                 assert set(tools) == {'cheapest_dates_tool','search_flights_tool','select_flight_tool','compare_fares_tool','airline_partners_tool'}
+                search_schema = tools['search_flights_tool'].model_dump(by_alias=True)['inputSchema']
+                assert 'exclude_basic_economy' not in json.dumps(search_schema)
                 request = dict(origin='JFK',destination='SCL',departure_date='2026-09-23',return_date='2026-09-30',include_airlines=['AA'])
                 result = await session.call_tool('search_flights_tool',{'request':request})
                 assert not result.model_dump(by_alias=True)['isError']
@@ -78,6 +80,9 @@ server.main()
                 assert result.model_dump(by_alias=True)['isError'] and 'Select a return' in result.content[0].text
                 result=await session.call_tool('search_flights_tool',{'request':request | {'limit':0}})
                 assert result.model_dump(by_alias=True)['isError']
+                result=await session.call_tool('search_flights_tool',{'request':request | {'exclude_basic_economy':True}})
+                assert result.model_dump(by_alias=True)['isError']
+                assert 'Retrying cannot enable it' in result.content[0].text
                 result=await session.call_tool('airline_partners_tool',{'program':'skymiles','airline':'LA'})
                 assert not result.model_dump(by_alias=True)['isError']
                 assert json.loads(result.content[0].text)['airlines'][0]['earning_eligibility'] == 'unknown'

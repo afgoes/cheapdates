@@ -64,6 +64,9 @@ async def search_flights_tool(request: SearchRequest) -> dict:
     for nonstop both ways. Times are inclusive local-hour ranges (7..18 includes 18:59).
     Free browserless Google search shows outbound options with round-trip prices.
     Use select_flight_tool to retrieve return options for the chosen outbound.
+    A journey with connections is not nonstop. Partner-operated flights may match
+    the traveler: do not impose a same-airline operator requirement unless requested.
+    Non-Basic fares and personal benefits cannot be guaranteed by this search.
     Initial prices may require returns that fail local filters. Marketing airlines
     do not establish the operating airline; unknown operators are not verified metal.
     Offers expose unverified_properties; null is unknown, not free/eligible/nonstop.
