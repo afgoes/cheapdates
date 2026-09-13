@@ -66,7 +66,10 @@ server.main()
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 tools = {t.name: t for t in (await session.list_tools()).tools}
-                assert set(tools) == {'cheapest_dates_tool','search_flights_tool','select_flight_tool','compare_fares_tool','airline_partners_tool'}
+                assert set(tools) == {'cheapest_dates_tool','search_flights_tool','select_flight_tool','compare_fares_tool','airline_partners_tool','assess_benefits_tool'}
+                search_schema = tools['search_flights_tool'].model_dump(by_alias=True)['inputSchema']
+                basic_prop = search_schema['$defs']['SearchRequest']['properties']['exclude_basic_economy']
+                assert basic_prop['default'] is False and 'unverified' in basic_prop['description']
                 request = dict(origin='JFK',destination='SCL',departure_date='2026-09-23',return_date='2026-09-30',include_airlines=['AA'])
                 result = await session.call_tool('search_flights_tool',{'request':request})
                 assert not result.model_dump(by_alias=True)['isError']
@@ -78,9 +81,27 @@ server.main()
                 assert result.model_dump(by_alias=True)['isError'] and 'Select a return' in result.content[0].text
                 result=await session.call_tool('search_flights_tool',{'request':request | {'limit':0}})
                 assert result.model_dump(by_alias=True)['isError']
+                result=await session.call_tool('search_flights_tool',{'request':request | {'exclude_basic_economy':True}})
+                assert not result.model_dump(by_alias=True)['isError']
+                filtered = json.loads(result.content[0].text)
+                assert filtered['offers'][0]['basic_exclusion'] == {'requested':True,'verification':'unverified'}
+                assert filtered['offers'][0]['basic_economy'] is None
                 result=await session.call_tool('airline_partners_tool',{'program':'skymiles','airline':'LA'})
                 assert not result.model_dump(by_alias=True)['isError']
                 assert json.loads(result.content[0].text)['airlines'][0]['earning_eligibility'] == 'unknown'
+                result=await session.call_tool('assess_benefits_tool',{'offer_id':offer['offer_id'],
+                    'traveler':{'program':'mileageplus','tier':'gold','required_benefits':['extra_baggage']}})
+                assert not result.model_dump(by_alias=True)['isError']
+                review=json.loads(result.content[0].text)
+                assert not review['requirements_verified'] and not review['itinerary_complete']
+                assert review['segments'][0]['benefits'][0]['policy_status'] == 'unknown'
+                result=await session.call_tool('assess_benefits_tool',{'operating_airline':'LA',
+                    'traveler':{'program':'Delta SkyMiles','tier':'Platinum Medallion','required_benefits':['extra_baggage']}})
+                assert not result.model_dump(by_alias=True)['isError']
+                review=json.loads(result.content[0].text)
+                assert review['traveler']['tier'] == 'platinum' and review['sources']
+                result=await session.call_tool('assess_benefits_tool',{'operating_airline':'LA'})
+                assert result.model_dump(by_alias=True)['isError']
 
     asyncio.run(check())
 
@@ -109,7 +130,8 @@ server.main()
         async with stdio_client(params) as (read,write):
             async with ClientSession(read,write) as session:
                 await session.initialize()
-                result=await session.call_tool('search_flights_tool',{'request':dict(origin='LAX',destination='AUS',departure_date='2026-10-14')})
+                result=await session.call_tool('search_flights_tool',{'request':dict(origin='LAX',destination='AUS',departure_date='2026-10-14',
+                    traveler={'program':'latam_pass','tier':'black','required_benefits':['seat_selection']})})
                 assert not result.model_dump(by_alias=True)['isError']
                 offer=json.loads(result.content[0].text)['offers'][0]
                 result=await session.call_tool('select_flight_tool',{'offer_id':offer['offer_id']})
@@ -120,6 +142,10 @@ server.main()
                 assert data['search_quote']['price']=='159' and data['lowest_fare']['price']=='158.40'
                 assert data['lowest_fare']['fare_components'][0]['fare_basis']=='KAG5AKBN'
                 assert data['same_fare_as_search_quote_verified'] is False
+                assert data['lowest_fare']['benefit_assessment']['quote_provider'] == 'ita_matrix'
+                result=await session.call_tool('assess_benefits_tool',{'offer_id':offer['offer_id']})
+                assert not result.model_dump(by_alias=True)['isError']
+                assert json.loads(result.content[0].text)['traveler']['program'] == 'latam_pass'
     asyncio.run(check())
 
 

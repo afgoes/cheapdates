@@ -138,6 +138,15 @@ def _amount(value, currency):
     return money(value[3:])
 
 
+def _operator_disclosure(segment):
+    ext = segment.get("ext")
+    text = ext.get("operationalDisclosure") if isinstance(ext, dict) else None
+    prefix = "OPERATED BY "
+    if isinstance(text, str) and text.strip().upper().startswith(prefix):
+        return text.strip()[len(prefix):].strip() or None
+    return None
+
+
 def parse_detail(payload, request):
     """Preserve exact Matrix fare components and notes; never infer a brand."""
     try:
@@ -166,6 +175,7 @@ def parse_detail(payload, request):
                     arrival_local=dt.datetime.fromisoformat(s["arrival"]).replace(tzinfo=None),
                     duration_minutes=s["duration"], marketing_carrier=code, flight_number=code + number,
                     airline_name=s["carrier"].get("shortName"),
+                    operating_airline_name=_operator_disclosure(s),
                     cabin=s["bookingInfos"][0].get("cabin") if s.get("bookingInfos") else None,
                     technical_stops=len(s["legs"]) - 1 if isinstance(s.get("legs"), list) and s["legs"] else None))
             journeys.append(journey(segments))

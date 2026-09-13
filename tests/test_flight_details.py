@@ -98,9 +98,18 @@ def test_connections_across_midnight_and_airport_changes():
     {'carry_on_bags':2}, {'include_airlines':['American']},
     {'include_airlines':['AA'],'alliance':'ONEWORLD'}, {'outbound':{'max_stops':-1}},
     {'outbound':{'earliest_departure_hour':18,'latest_departure_hour':7}},
-    {'exclude_basic_economy':True}, {'provider':'serpapi','checked_bags':1},
+    {'exclude_basic_economy':'true'}, {'provider':'serpapi','checked_bags':1},
     {'inbound':{'max_stops':0}}, {'unexpected':True},
 ])
 def test_invalid_search_inputs_fail_before_transport(fields):
     with pytest.raises(ValueError):
         SearchRequest.model_validate(dict(origin='MYJ',destination='TPE',departure_date='2026-10-14') | fields)
+
+
+def test_basic_exclusion_is_visible_explicit_and_off_by_default():
+    prop = SearchRequest.model_json_schema()['properties']['exclude_basic_economy']
+    assert prop['default'] is False and 'unverified' in prop['description']
+    req = SearchRequest(origin='JFK', destination='SCL', departure_date='2026-09-23')
+    assert req.model_dump()['exclude_basic_economy'] is False
+    req.exclude_basic_economy = True
+    assert req.model_dump()['exclude_basic_economy'] is True

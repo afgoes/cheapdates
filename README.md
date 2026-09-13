@@ -4,8 +4,17 @@ Flight calendars, detailed itineraries, airline/alliance filters, and free ITA M
 
 The default workflow uses HTTP only: no Chromium, clicking, account, personal API key or subscription.
 
-Version 0.3 adds four MCP tools alongside the existing calendar: `search_flights_tool`,
-`select_flight_tool`, `compare_fares_tool`, and `airline_partners_tool`.
+The MCP includes `cheapest_dates_tool`, `search_flights_tool`, `select_flight_tool`,
+`compare_fares_tool`, `airline_partners_tool`, and `assess_benefits_tool`.
+Optional traveler profiles record any loyalty program, status tier and requested benefits.
+Benefit assessments distinguish sourced tier policies, explicit exclusions and missing evidence
+for each operator. Initial reviewed coverage includes SkyMiles on LATAM/Virgin Atlantic and
+LATAM Pass on Delta; other combinations remain unknown. No personal defaults or account numbers
+are needed. Required benefits default to an empty list and Basic fares are not excluded
+by default. `exclude_basic_economy=true` is an explicit user choice sent to Google as an
+unverified preference, not a guarantee of non-Basic fares. These tools do not list every
+airline fare family. Search `limit=null` returns all matching candidates in the provider
+response; coverage metadata reports output truncation.
 See [detailed search and fare comparison](docs/flight-search.md) for examples, booking-class comparisons,
 and the distinction between requested filters and verified itinerary details.
 

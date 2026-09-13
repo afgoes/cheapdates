@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .core import Seat, _airport
+from .traveler import TravelerProfile
 
 Count = Annotated[int, Field(strict=True, ge=0, le=9)]
 Hour = Annotated[int, Field(strict=True, ge=0, le=23)]
@@ -66,6 +67,7 @@ class SearchRequest(Model):
     currency: str = "USD"
     seat: Seat = "economy"
     passengers: Passengers = Field(default_factory=Passengers)
+    traveler: TravelerProfile | None = Field(default=None, description="Optional loyalty status and benefit requirements for one traveler. Used locally for review, never sent to search providers or used as a verified fare filter.")
     provider: Literal["google"] = "google"
     include_airlines: list[str] = Field(default_factory=list, max_length=20)
     exclude_airlines: list[str] = Field(default_factory=list, max_length=20)
@@ -75,10 +77,12 @@ class SearchRequest(Model):
     inbound: LegFilters = Field(default_factory=LegFilters)
     carry_on_bags: Count = 0
     checked_bags: Count = 0
-    exclude_basic_economy: bool = False
+    exclude_basic_economy: bool = Field(default=False, strict=True,
+        description="Only when explicitly requested by the user: ask Google to exclude Basic fares. Default false. Provider preference only; returned fare brands and exclusion compliance are unverified. Does not filter separate Matrix fares.")
     hide_separate_and_self_transfer: bool = False
     max_price: Annotated[int, Field(strict=True, gt=0)] | None = None
-    limit: Annotated[int, Field(strict=True, ge=1, le=20)] = 5
+    limit: Annotated[int, Field(strict=True, ge=1, le=20)] | None = Field(default=5,
+        description="Maximum returned flight offers, or null for all matching candidates in this Google response (up to 256 reference slots; larger responses require an explicit limit). This is not all airline fare families or exhaustive inventory.")
     sort_by: Literal["price", "duration", "departure"] = "price"
 
     @field_validator("origin", "destination")
@@ -116,8 +120,6 @@ class SearchRequest(Model):
             raise ValueError("Operating-carrier alliance filtering is not supported")
         if self.carry_on_bags > self.passengers.adults + self.passengers.children + self.passengers.infants_in_seat:
             raise ValueError("carry_on_bags cannot exceed passengers with seats")
-        if self.exclude_basic_economy:
-            raise ValueError("Global basic-economy exclusion cannot be verified. Use compare_fares_tool to inspect fare types for selected flights.")
         return self
 
 

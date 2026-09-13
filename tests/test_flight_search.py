@@ -185,3 +185,50 @@ def test_matrix_no_fares_retains_google_quote_without_claiming_unavailability(mo
     assert result['search_quote']['price'] == '300'
     assert result['fares'] == [] and result['lowest_fare'] is None
     assert result['fare_brand_verification'] == 'unavailable'
+
+
+@pytest.mark.parametrize('exclude', [False, True])
+def test_basic_filter_only_changes_provider_preference_and_never_labels_unknown_fares(monkeypatch, exclude):
+    from cheapdates.google_selection import SelectedQuery
+    import base64
+    req = request(exclude_basic_economy=exclude, return_date='2026-10-21')
+    outbound = flight()['journey']
+    incoming = flight('TPE','MYJ','2026-10-21','BR 110')['journey']
+    q = providers.google_query(req)
+    assert q.exclude_basic_economy is exclude
+    pb = q.pb()
+    pb.ParseFromString(base64.urlsafe_b64decode(SelectedQuery(req, [outbound]).params()['tfs']))
+    assert bool(pb.exclude_basic_economy) is exclude
+    fetch = Mock(side_effect=[([{'price':'100', 'journey':outbound}],0), ([{'price':'105', 'journey':incoming}],0)])
+    monkeypatch.setattr(flight_search,'fetch_google',fetch)
+    initial = search_flights(req)['offers'][0]
+    returning = select_flight(initial['offer_id'])['offers'][0]
+    for offer in [initial, returning]:
+        assert offer['basic_economy'] is None and offer['fare_brand'] is None
+        assert offer['basic_exclusion']['requested'] is exclude
+        assert ('basic_economy_exclusion' in offer['unverified_properties']) is exclude
+    assert fetch.call_args.args[0].exclude_basic_economy is exclude
+
+
+def test_all_matching_provider_candidates_can_be_requested_without_claiming_all_fares(monkeypatch):
+    rows = [flight(price=p) for p in range(100, 109)]
+    rows.append(rows[0])
+    monkeypatch.setattr(flight_search, 'fetch_google', Mock(return_value=(rows, 0)))
+    default = search_flights(request())
+    assert len(default['offers']) == 5
+    assert default['fare_coverage']['matching_candidates'] == 9
+    assert default['fare_coverage']['truncated_by_limit'] is True
+    unlimited = search_flights(request(limit=None))
+    assert len(unlimited['offers']) == 9
+    assert unlimited['fare_coverage']['truncated_by_limit'] is False
+    assert unlimited['fare_coverage']['exhaustive'] is False
+    assert unlimited['fare_coverage']['all_fare_families'] is False
+
+
+def test_unlimited_response_never_returns_references_it_has_already_evicted(monkeypatch):
+    monkeypatch.setattr(flight_search, 'OFFERS', OfferStore(capacity=2))
+    rows = [flight(price=p) for p in [100, 200, 300]]
+    monkeypatch.setattr(flight_search, 'fetch_google', Mock(return_value=(rows, 0)))
+    with pytest.raises(ValueError, match='Set an explicit limit'):
+        search_flights(request(limit=None))
+    assert not flight_search.OFFERS.entries

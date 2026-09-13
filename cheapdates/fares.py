@@ -9,6 +9,7 @@ from .flight_search import OFFERS, check_journey
 from .google_selection import SelectedQuery
 from .matrix import fetch_fares
 from .search_models import money
+from .benefits import assess_journeys
 
 
 def pinned_journey(journey):
@@ -76,6 +77,9 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
                           taxes=quote["taxes"], conditions=conditions(quote["ticket_notes"]),
                           baggage_terms=[], total_with_requested_bags=None if request.carry_on_bags or request.checked_bags else price,
                           flight_details={key: j.to_json() for key, j in zip(expected, selected)}, schedule_changed=changed))
+        if request.traveler:
+            fares[-1]["benefit_assessment"] = assess_journeys(request.traveler,
+                fares[-1]["flight_details"], complete=True, quote_provider="ita_matrix")
     if rejected and not fares:
         raise ValueError("Matrix returned different flights or flights failing the requested constraints; no fare conditions were attached")
     fares.sort(key=lambda fare: Decimal(fare["price"]))
@@ -90,6 +94,8 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
     skipped = payload["malformed_rows"] + rejected
     if skipped:
         warnings.append(f"Excluded {skipped} malformed or mismatched Matrix fares")
+    if request.exclude_basic_economy:
+        warnings.append("The user-requested Google Basic exclusion does not apply to Matrix's separate quotes. Matrix fare brands remain unknown and no Basic filter was applied here")
     known = [f for f in fares if f["total_with_requested_bags"] is not None]
     journeys = [entry["outbound"]] + ([entry["inbound"]] if entry["inbound"] else [])
     return dict(status="partial" if skipped else "ok" if fares else "no_results", provider="ita_matrix",
@@ -98,6 +104,9 @@ def compare_fares(offer_id: str, booking_codes: list[str] | None = None):
                 search_quote={"provider": "google", "price": entry["offer"]["price"], "retrieved_at": entry["offer"]["retrieved_at"]},
                 same_fare_as_search_quote_verified=False, fares=fares, lowest_fare=fares[0] if fares else None,
                 fare_brand_verification="unavailable",
+                fare_coverage=dict(exhaustive=False, all_fare_families=False,
+                    solution_limit_per_booking_class=10, basic_exclusion_applied=False,
+                    google_basic_exclusion_requested=request.exclude_basic_economy),
                 no_fares_reason="no_matrix_fares_for_selected_flights" if not fares and not skipped else None,
                 benefits_eligibility={"mileage_earning": "unknown", "upgrade_certificates": "unknown", "complimentary_upgrades": "unknown"},
                 lowest_known_total_with_bags=known[0] if known else None,
